@@ -12,10 +12,11 @@
 int main(int argc, char *argv[]){
 
     int fd, ret;
+    unsigned long write_timer;
     char mess[MAX_MESSAGE_SIZE];
 
-    if(argc != 2) {
-        fprintf(stderr, "Usage: sudo %s <filename>\n", argv[0]);
+    if(argc != 3) {
+        fprintf(stderr, "Usage: sudo %s <filename> <write_timer>\n", argv[0]);
         return(EXIT_FAILURE);
     }
 
@@ -26,9 +27,17 @@ int main(int argc, char *argv[]){
         return(EXIT_FAILURE);
     }
 
-    //TODO:set of write-timeout
+    //Setting of write_timer
+    write_timer = strtoul(argv[2], NULL, 10);
+    if(write_timer != 0) {
+        ret = ioctl(fd, SET_RECV_TIMEOUT, write_timer);
+        if (ret == -EINVAL) {
+            fprintf(stderr, "ioctl() has failed: %s\n", strerror(errno));
+            return (EXIT_FAILURE);
+        }
+    }
 
-    //TODO: Reading from STDIN content to write on file
+    /*TODO: Reading from STDIN content to write on file
     while (1) {
         fputc('>', stdout);
         fflush(stdout);
@@ -58,7 +67,7 @@ int main(int argc, char *argv[]){
         } else {
             fprintf(stderr, "write() returned %d\n", ret);
         }
-    }
+    }*/
 
 
 }

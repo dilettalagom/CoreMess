@@ -152,9 +152,13 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
     switch (command){
         case SET_SEND_TIMEOUT:
             session->write_timer = param;
+            DEBUG
+                printk("%s: ioctl() has set SET_SEND_TIMEOUT:%lu\n", MODNAME, session->write_timer);
             break;
         case SET_RECV_TIMEOUT:
             session->read_timer = param;
+            DEBUG
+                printk("%s: ioctl() has set SET_RECV_TIMEOUT:%lu\n", MODNAME, session->read_timer);
             break;
         case REVOKE_DELAYED_MESSAGES:
             break;
