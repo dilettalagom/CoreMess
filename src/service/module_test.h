@@ -10,8 +10,8 @@
 #include <linux/version.h>	/* For LINUX_VERSION_CODE */
 
 
-#include "config.h"
-#include "new_structures.h"
+#include "../include/config.h"
+#include "../include/new_structures.h"
 
 #define DEBUG if(1) //enable debug printk
 

@@ -30,23 +30,23 @@ static int dev_open(struct inode *inode, struct file *file) {
     if(minor >= MINORS){
         return -ENODEV;
     }
-    printk("%s: start opening object with minor %d\n",MODNAME,minor);
+    printk("%s: start opening object with minor %d\n", MODNAME, minor);
 
     //Init single_session metadata
     session = kmalloc(sizeof(single_session), GFP_KERNEL);
     if(session == NULL){
-        printk(KERN_ERR "%s: FAIL kmalloc in dev_open\n",MODNAME);
+        printk(KERN_ERR "%s: kmalloc() failed in dev_open\n", MODNAME);
         return -ENOMEM; /* Out of memory */
     }
     DEBUG
-        printk("%s: kmalloc succeded\n",MODNAME);
+        printk("%s: kmalloc succeded\n", MODNAME);
 
     session->write_timer = 0;
     session->read_timer = 0;
 
 
     file->private_data = (void *) session;
-    printk("%s: device file successfully opened for object with minor %d\n",MODNAME,minor);
+    printk("%s: device file successfully opened for object with minor %d\n", MODNAME, minor);
 
     //device opened by a default nop
     return 0;

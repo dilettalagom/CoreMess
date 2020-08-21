@@ -1,0 +1,12 @@
+.idea
+/BCK
+/src/service/*.cmd
+/src/service/*.o
+/src/service/.cache.mk
+/src/service/*.mod.*
+/src/service/Module.symvers
+/src/service/modules.order
+/src/service/*.ko
+/src/service/.tmp_versions
+/users/*.out
+./cmake-build-debug

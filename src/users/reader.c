@@ -1,4 +1,4 @@
-#include "../src/config.h"
+#include "../include/config.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]){
     if(read_timer != 0) {
         ret = ioctl(fd, SET_RECV_TIMEOUT, read_timer);
         if (ret == -EINVAL) {
-            fprintf(stderr, "ioctl() has failed: %s\n", strerror(errno));
+            fprintf(stderr, "ioctl() failed: %s\n", strerror(errno));
             return (EXIT_FAILURE);
         }
     }
