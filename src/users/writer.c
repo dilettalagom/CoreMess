@@ -16,6 +16,7 @@ int main(int argc, char *argv[]){
     unsigned long write_timer;
     char* mess;
     char* mess_read;
+    unsigned long len;
 
     if(argc != 5){
         fprintf(stderr, "Usage: sudo %s <filename> <major> <minor> <write_timer_micros>\n", argv[0]);
@@ -59,6 +60,8 @@ int main(int argc, char *argv[]){
             fprintf(stderr,"Error in scanf: %s\n",strerror(errno));
             exit(EXIT_FAILURE);
         }
+        len = strlen(mess);
+        mess = realloc(mess, len);
 
 
         /*if (strcmp(mess, "REVOKE_DELAYED_MESSAGES") == 0) {
@@ -76,21 +79,20 @@ int main(int argc, char *argv[]){
             return(EXIT_SUCCESS);
         }*/
         // Write the input into the device file
-        fprintf(stdout, "Sending message to device: %s , %lu\n",mess, strlen(mess));
+        fprintf(stdout, "Sending message to device: %s , %lu\n", mess, len);
         ret = write(fd, mess, strlen(mess));
-        if (ret < 0) {
-            fprintf(stderr, "write() failed: %s\n", strerror(errno));
-        } else {
-            fprintf(stderr, "write() returned %d\n", ret);
-        }
 
-        ret_read = read(fd, mess_read, MAX_MESSAGE_SIZE);
-        if (ret_read < 0) {
-            fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
-        } else {
-            printf("You have a new message: %s\n", mess_read);
-        }
+        fprintf(stdout, "write(): %d\n", ret);
+
+    //        ret_read = read(fd, mess_read, MAX_MESSAGE_SIZE);
+    //        if (ret_read < 0) {
+    //            fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
+    //        } else {
+    //            printf("You have a new message: %s\n", mess_read);
+    //        }
     }
 
+    close(fd);
+    return(EXIT_SUCCESS);
 
 }

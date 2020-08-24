@@ -86,12 +86,13 @@ static int dev_release(struct inode *inode, struct file *file) {
 
 }
 
+
 static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t *off) {
 
-    int minor;
+    int minor, ret = 0;
+    char* temp;
     single_session* session;
     message_t* new_message;
-
 
     minor = get_minor(file);
     DEBUG
@@ -104,20 +105,19 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
         return -EMSGSIZE;
     }
 
-    //alloc space for the new message
-    new_message = kmalloc(sizeof(message_t), GFP_KERNEL);
-    if (new_message == NULL) {
+    //get message from user-level
+    temp = kmalloc(len, GFP_KERNEL);
+    if (temp == NULL) {
         DEBUG
-            printk(KERN_ERR "%s: kalloc(message_t) failed in dev_write\n",MODNAME);
+            printk(KERN_ERR "%s: the new message is bigger than the max_message_size\n",MODNAME);
         return -ENOMEM;
     }
-    INIT_LIST_HEAD(&(new_message->next));
-
-    new_message->text = kmalloc(len, GFP_KERNEL);
-    if (new_message->text == NULL) {
+    ret = copy_from_user(temp, buff, len);
+    if (ret) {
+        kfree(temp);
         DEBUG
-            printk(KERN_ERR "%s: kalloc(text) failed in dev_write\n",MODNAME);
-        return -ENOMEM;
+            printk(KERN_ERR "%s: copy_from_user in write failed\n",MODNAME);
+        return -EMSGSIZE;
     }
 
     session = (single_session*)file->private_data;
@@ -131,77 +131,78 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
     }else { //NO_WAIT_WRITE
         DEBUG
             printk("%s: a NO_WAIT_WRITE has been invoked\n", MODNAME);
-        /*if(*off > the_object->valid_bytes) {//offset bwyond the current stream size
-            mutex_unlock(&(instance_by_minor[minor].write_mutex));
-            return -ENOSR;//out of stream resources
-        }*/
 
         mutex_lock(&(instance_by_minor[minor].dev_mutex));
-        //check if the message can be stored in the device
-        if(instance_by_minor[minor].actual_total_size + len >= max_storage_size) {
-            mutex_unlock(&(instance_by_minor[minor].dev_mutex));
-            return -ENOSPC; /* no space left on device */
+
+        //check for storage in device
+        if (instance_by_minor[minor].actual_total_size + len > max_storage_size) {
+            kfree(buff);
+            return -ENOMEM;
         }
 
-        //add messagge to device structure
-        if (copy_from_user(new_message->text, buff, len)){
-            DEBUG
-                printk(KERN_ERR "%s: copy_from_user in write failed\n",MODNAME);
-            return -EMSGSIZE;
+        //create new message node
+        new_message = kmalloc(sizeof(message_t), GFP_KERNEL);
+        if (new_message == NULL) {
+            return -ENOMEM;
         }
-        printk("%s: copy_from_user in write: %s\n",MODNAME, new_message->text);
-//        list_add_tail(&(new_message->next), &(instance_by_minor[minor].stored_messages));
-//
-//        instance_by_minor[minor].actual_total_size += len;
-//        DEBUG
-//            printk("%s write(), new size: %u\n",MODNAME,  instance_by_minor[minor].actual_total_size);
-//        mutex_unlock(&(instance_by_minor[minor].dev_mutex));
+        new_message->text = temp;
+        INIT_LIST_HEAD(&(new_message->next));
+
+        //update global device state
+        list_add_tail(&(new_message->next), &(instance_by_minor[minor].stored_messages));
+        instance_by_minor[minor].actual_total_size += len;
+
+        DEBUG
+            printk("%s write(), new size: %u\n",MODNAME, instance_by_minor[minor].actual_total_size);
+
+        mutex_unlock(&(instance_by_minor[minor].dev_mutex));
 
     }
-    return 0;
+    return len - ret;
 
 }
 
 static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) {
 
     int minor;
-    single_session* session;
-    message_t* head_message;
-    unsigned int head_m_size;
+//    single_session* session;
+//    message_t* head_message;
+//    unsigned int head_m_size;
 
     minor = get_minor(file);
     DEBUG
         printk("%s: somebody called a READ on dev with minor number %d\n", MODNAME, minor);
 
-    //need to lock in any case
-    mutex_lock(&(instance_by_minor[minor].dev_mutex));
-    head_message = list_first_entry(&(instance_by_minor[minor].stored_messages), message_t, next);
+    /*  //need to lock in any case
+      mutex_lock(&(instance_by_minor[minor].dev_mutex));
+      head_message = list_first_entry(&(instance_by_minor[minor].stored_messages), message_t, next);
 
-    session = (single_session*)file->private_data;
+      session = (single_session*)file->private_data;
 
-    if (session->read_timer) { //DEFERRED_READ
-        //TODO
-        DEBUG
-            printk("%s: a DEFERRED READ has been invoked\n", MODNAME);
+      if (session->read_timer) { //DEFERRED_READ
+          //TODO
+          DEBUG
+              printk("%s: a DEFERRED READ has been invoked\n", MODNAME);
 
-    }else { //NO_WAIT_READ
-        head_m_size = strlen(head_message->text);
-        DEBUG
-            printk("%s: a NO_WAIT_READ has been invoked\n", MODNAME);
+      }else { //NO_WAIT_READ
+          head_m_size = strlen(head_message->text);
+          DEBUG
+              printk("%s: a NO_WAIT_READ has been invoked\n", MODNAME);
 
-        //add messagge to device structure
-        if (copy_to_user(buff, &(head_message->text), head_m_size)){
-            DEBUG
-                printk(KERN_ERR "%s: copy_to_user in read failed\n",MODNAME);
-            return -EMSGSIZE;
-        }
+          //add messagge to device structure
+          if (copy_to_user(buff, &(head_message->text), head_m_size)){
+              DEBUG
+                  printk(KERN_ERR "%s: copy_to_user in read failed\n",MODNAME);
+              return -EMSGSIZE;
+          }
 
-        //list_del(&(head_message->next));
-        instance_by_minor[minor].actual_total_size -= head_m_size;
-        mutex_unlock(&(instance_by_minor[minor].dev_mutex));
-        //kfree(head_message->text);
-        //kfree(head_message);
-    }
+          //list_del(&(head_message->next));
+          instance_by_minor[minor].actual_total_size -= head_m_size;
+          //kfree(head_message->text);
+          //kfree(head_message);
+      }
+      mutex_unlock(&(instance_by_minor[minor].dev_mutex));*/
+
     return 0;
 
     /*   object_state *the_object;
