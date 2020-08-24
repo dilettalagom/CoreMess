@@ -1,0 +1,19 @@
+WRITE ON CHAR-DEV
+$ echo ciao > my_prova
+$ cat my_prova
+>ciao
+
+//https://www.oreilly.com/library/view/linux-device-drivers/0596000081/ch03s04.html
+void *private_data;
+The open system call sets this pointer to NULL before calling the open method for the driver.
+The driver is free to make its own use of the field or to ignore it.
+The driver can use the field to point to allocated data,
+but then must free memory in the release method before the file structure is destroyed by the kernel.
+private_data is a useful resource for preserving state information across system calls and is used by most of our sample modules.
+
+//http://www.makelinux.net/ldd3/chp-2-sect-8.shtml
+S_IRUGO|S_IWUSR
+Use S_IRUGO for a parameter that can be read by the world but cannot be changed;
+S_IRUGO|S_IWUSR allows root to change the parameter. Note that if a parameter is changed by sysfs,
+the value of that parameter as seen by your module changes, but your module is not notified in any other way.
+You should probably not make module parameters writable, unless you are prepared to detect the change and react accordingly.

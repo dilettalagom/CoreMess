@@ -1,4 +1,4 @@
-obj-m += module_test.o
+obj-m += module_mess.o
 
 all:
 	KCPPFLAGS="-Wall -Werror" make -C  /lib/modules/$(shell uname -r)/build M=$(PWD) modules

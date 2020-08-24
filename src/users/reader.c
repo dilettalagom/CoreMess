@@ -15,10 +15,10 @@ int main(int argc, char *argv[]){
     int fd, ret = 0;
     unsigned int major, minor;
     unsigned long read_timer;
-    char mess[MAX_MESSAGE_SIZE];
+    //char* mess;
 
     if(argc != 5){
-        fprintf(stderr, "Usage: sudo %s <filename> <major> <minor> <read_timer>\n", argv[0]);
+        fprintf(stderr, "Usage: sudo %s <filename> <major> <minor> <read_timer_micros>\n", argv[0]);
         return(EXIT_FAILURE);
     }
     major = strtoul(argv[2], NULL, 10);
@@ -37,7 +37,7 @@ int main(int argc, char *argv[]){
         fprintf(stderr, "Could not open the file: %s\n", strerror(errno));
         return(EXIT_FAILURE);
     }
-    fprintf(stderr, "File device opened with fd: %d\n", fd);
+    fprintf(stdout, "File device opened with fd: %d\n", fd);
 
    // while (1);
 
@@ -51,10 +51,12 @@ int main(int argc, char *argv[]){
         }
     }
 /*
+ *  mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
+
     // Reading new messagges from file
     while (1) {
         ret = read(fd, mess, MAX_MESSAGE_SIZE);
-        if (ret == -1) {
+        if (ret < 0) {
             fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
         } else {
             printf("You have a new message: %s\n", mess);

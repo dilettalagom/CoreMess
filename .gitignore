@@ -8,5 +8,5 @@
 /src/service/modules.order
 /src/service/*.ko
 /src/service/.tmp_versions
-/users/*.out
+/src/users/*.out
 ./cmake-build-debug

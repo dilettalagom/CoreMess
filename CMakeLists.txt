@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
 set(SOURCE_FILES
         src/include/config.h
-        src/service/module_test.c src/service/module_test.h
+        src/service/module_mess.c src/service/module_mess.h
         src/users/writer.c src/users/reader.c src/include/new_structures.h src/test.c)
 
 add_executable(CoreMess ${SOURCE_FILES})

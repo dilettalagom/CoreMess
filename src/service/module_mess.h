@@ -20,8 +20,7 @@
 
 //general conf
 #define MINORS 3 //MAX_DEV_INSTANCES
-#define PERM_MODE S_IRUGO | S_IWUSR
-//#define PERM_MODE S_IRUSR | S_IRGRP | S_IROTH
+#define PERM_MODE S_IWUSR | S_IRUGO  //(0644) read-only: S_IRUSR | S_IRGRP | S_IROTH
 
 
 //dev_op
