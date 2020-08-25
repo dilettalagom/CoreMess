@@ -1,4 +1,4 @@
-#include "module_mess.h"
+#include "module_messy.h"
 
 
 static unsigned long max_message_size = MAX_MESSAGE_SIZE;
@@ -86,13 +86,34 @@ static int dev_release(struct inode *inode, struct file *file) {
 
 }
 
+static int __add_new_message(device_instance* instance, char* temp, size_t len)
+{
+    message_t* new_message;
+
+    if (instance->actual_total_size + len > max_storage_size) {
+        kfree(temp);
+        return -ENOSPC;
+    }
+    new_message = kmalloc(sizeof(message_t), GFP_KERNEL);
+    if (new_message == NULL) {
+        kfree(temp);
+        return -ENOMEM;
+    }
+
+    new_message->text = temp;
+    INIT_LIST_HEAD(&(new_message->next));
+    list_add_tail(&(new_message->next), &(instance->stored_messages));
+    instance->actual_total_size += len;
+
+    return len;
+}
 
 static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t *off) {
 
     int minor, ret = 0;
     char* temp;
     single_session* session;
-    message_t* new_message;
+    //message_t* new_message;
 
     minor = get_minor(file);
     DEBUG
@@ -135,23 +156,28 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
 
         mutex_lock(&(instance_by_minor[minor].dev_mutex));
 
-        //check for storage in device
-        if (instance_by_minor[minor].actual_total_size + len > max_storage_size) {
-            kfree(buff);
-            return -ENOMEM;
-        }
+        ret = __add_new_message(&instance_by_minor[minor], temp, len);
 
-        //create new message node
-        new_message = kmalloc(sizeof(message_t), GFP_KERNEL);
-        if (new_message == NULL) {
-            return -ENOMEM;
-        }
-        new_message->text = temp;
-        INIT_LIST_HEAD(&(new_message->next));
-
-        //update global device state
-        list_add_tail(&(new_message->next), &(instance_by_minor[minor].stored_messages));
-        instance_by_minor[minor].actual_total_size += len;
+//        //check for storage in device
+//        if (instance_by_minor[minor].actual_total_size + len > max_storage_size) {
+//            kfree(temp);
+//            return -ENOMEM;
+//        }
+//
+//        //create new message node
+//        new_message = kmalloc(sizeof(message_t), GFP_KERNEL);
+//        if (new_message == NULL) {
+//            return -ENOMEM;
+//        }
+//        new_message->text = temp;
+//        INIT_LIST_HEAD(&(new_message->next));
+//        DEBUG
+//            printk("%s update\n",MODNAME);
+//
+//
+//        //update global device state
+//        list_add_tail(&(new_message->next), &(instance_by_minor[minor].stored_messages));
+//        instance_by_minor[minor].actual_total_size += len;
 
         DEBUG
             printk("%s write(), new size: %u\n",MODNAME, instance_by_minor[minor].actual_total_size);
@@ -236,17 +262,17 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
     printk("%s: ioctl() has been called on dev with (command: %u, value: %lu)\n", MODNAME, command, param);
 
     switch (command){
-        case SET_SEND_TIMEOUT: //0
+        case SET_SEND_TIMEOUT: //27392
             session->write_timer = ktime_set(0, param*1000); //param : microsecs*1000=ns
             DEBUG
                 printk("%s: ioctl() has set SET_SEND_TIMEOUT:%llu\n", MODNAME, session->write_timer);
             break;
-        case SET_RECV_TIMEOUT: //1
+        case SET_RECV_TIMEOUT: //27393 ?
             session->read_timer = ktime_set(0, param*1000);
             DEBUG
                 printk("%s: ioctl() has set SET_RECV_TIMEOUT:%llu\n", MODNAME, session->read_timer);
             break;
-        case REVOKE_DELAYED_MESSAGES: //2
+        case REVOKE_DELAYED_MESSAGES: //27394
             DEBUG
                 printk("%s: ioctl() has called REVOKE_DELAYED_MESSAGES\n", MODNAME);
             break;
@@ -258,21 +284,6 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
 }
 
 
-static void __del_all_messages(int minor){
-    struct list_head *ptr;
-    message_t* message;
-
-    list_for_each(ptr, &(instance_by_minor[minor].stored_messages)) {
-        message = list_entry(ptr, message_t, next);
-        list_del(&message->next);
-        kfree(message->text);
-        kfree(message);;
-    }
-    list_del(&(instance_by_minor[minor].stored_messages));
-    DEBUG
-        printk("%s: all messages in instance_by_minor[minor].stored_messages have been deleted\n", MODNAME);
-
-}
 
 static int dev_flush(struct file *file, fl_owner_t owner){
     int minor;
@@ -281,10 +292,7 @@ static int dev_flush(struct file *file, fl_owner_t owner){
     DEBUG
         printk("%s: somebody called a FLUSH on dev with minor number %d\n", MODNAME, minor);
 
-    //deleting all messagges
-    mutex_lock(&(instance_by_minor[minor].dev_mutex));
-    __del_all_messages(minor);
-    mutex_unlock(&(instance_by_minor[minor].dev_mutex));
+
 
     return 0;
 }
@@ -352,6 +360,12 @@ static void __del_all_sessions(device_instance* instance) {
 
 static void __exit remove_dev(void){
 
+    /*deleting all messagges
+    mutex_lock(&(instance_by_minor[minor].dev_mutex));
+    __del_all_messages(minor);
+    mutex_unlock(&(instance_by_minor[minor].dev_mutex));*/
+
+    //deleting all sessions
     __del_all_sessions((instance_by_minor));
 
     unregister_chrdev(Major, DEVICE_NAME);

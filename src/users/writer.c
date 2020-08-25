@@ -70,26 +70,25 @@ int main(int argc, char *argv[]){
                 fprintf(stderr, "ioctl(REVOKE_DELAYED_MESSAGES) failed: %s\n", strerror(errno));
                 return EXIT_FAILURE;
             }
-        }
-
-        if(strcmp(mess, "QUIT") == 0){
+        }else if(strcmp(mess, "QUIT") == 0){
             close(fd);
             fprintf(stdout, "File %s and %d cloesd. See ya.\n", argv[1], fd);
             return EXIT_SUCCESS;
+        }else {
+
+            // Write the input into the device file
+            fprintf(stdout, "Sending message to device: %s , %lu\n", mess, len);
+            ret = write(fd, mess, strlen(mess));
+
+            fprintf(stdout, "write(): %d\n", ret);
+
+            //        ret_read = read(fd, mess_read, MAX_MESSAGE_SIZE);
+            //        if (ret_read < 0) {
+            //            fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
+            //        } else {
+            //            printf("You have a new message: %s\n", mess_read);
+            //        }
         }
-
-        // Write the input into the device file
-        fprintf(stdout, "Sending message to device: %s , %lu\n", mess, len);
-        ret = write(fd, mess, strlen(mess));
-
-        fprintf(stdout, "write(): %d\n", ret);
-
-        //        ret_read = read(fd, mess_read, MAX_MESSAGE_SIZE);
-        //        if (ret_read < 0) {
-        //            fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
-        //        } else {
-        //            printf("You have a new message: %s\n", mess_read);
-        //        }
     }
 
     close(fd);
