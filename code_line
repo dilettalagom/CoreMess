@@ -22,4 +22,11 @@ You should probably not make module parameters writable, unless you are prepared
 LIST_HEAD
 -list_for_each_entry_safe_reverse(pos, n, head, member) :iterate backwards over list safe against removal
 
+//https://tuxthink.blogspot.com/2011/01/creating-ioctl-command.html
+IOCTL_BASE 'k' -> https://ufal.mff.cuni.cz/~jernej/2018/docs/predavanja06.pdf
+The number should be unique across the system. Picking arbitrary number is a bad idea, because:
+Two device nodes may have the same major number. An application could open more than one device and mix up the file
+descriptors, thereby sending the right command to the wrong device. Sending wrong ioctl commands can have catastrophic
+consequences, including damage to hardware. A unique magic number should be encoded into the commands
+
 

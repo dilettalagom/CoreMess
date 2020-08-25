@@ -7,8 +7,9 @@
 #define MAX_STORAGE_SIZE 1024000  //byte (1MB). This can be configured via the sys file system
 
 //ioctl commands
-#define SET_SEND_TIMEOUT        0
-#define SET_RECV_TIMEOUT        1
-#define REVOKE_DELAYED_MESSAGES 2
+#define IOC_BASE_NUM 'k'
+#define SET_SEND_TIMEOUT         _IO(IOC_BASE_NUM, 0)
+#define SET_RECV_TIMEOUT         _IO(IOC_BASE_NUM, 1)
+#define REVOKE_DELAYED_MESSAGES  _IO(IOC_BASE_NUM, 2)
 
 #endif

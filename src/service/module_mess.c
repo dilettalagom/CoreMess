@@ -129,6 +129,7 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
 
 
     }else { //NO_WAIT_WRITE
+
         DEBUG
             printk("%s: a NO_WAIT_WRITE has been invoked\n", MODNAME);
 
@@ -174,35 +175,35 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
     DEBUG
         printk("%s: somebody called a READ on dev with minor number %d\n", MODNAME, minor);
 
-    /*  //need to lock in any case
-      mutex_lock(&(instance_by_minor[minor].dev_mutex));
-      head_message = list_first_entry(&(instance_by_minor[minor].stored_messages), message_t, next);
+    //need to lock in any case
+    /*mutex_lock(&(instance_by_minor[minor].dev_mutex));
+    head_message = list_first_entry(&(instance_by_minor[minor].stored_messages), message_t, next);
 
-      session = (single_session*)file->private_data;
+    session = (single_session*)file->private_data;
 
-      if (session->read_timer) { //DEFERRED_READ
-          //TODO
-          DEBUG
-              printk("%s: a DEFERRED READ has been invoked\n", MODNAME);
+    if (session->read_timer) { //DEFERRED_READ
+        //TODO
+        DEBUG
+            printk("%s: a DEFERRED READ has been invoked\n", MODNAME);
 
-      }else { //NO_WAIT_READ
-          head_m_size = strlen(head_message->text);
-          DEBUG
-              printk("%s: a NO_WAIT_READ has been invoked\n", MODNAME);
+    }else { //NO_WAIT_READ
+        head_m_size = strlen(head_message->text);
+        DEBUG
+            printk("%s: a NO_WAIT_READ has been invoked\n", MODNAME);
 
-          //add messagge to device structure
-          if (copy_to_user(buff, &(head_message->text), head_m_size)){
-              DEBUG
-                  printk(KERN_ERR "%s: copy_to_user in read failed\n",MODNAME);
-              return -EMSGSIZE;
-          }
+        //add messagge to device structure
+        if (copy_to_user(buff, &(head_message->text), head_m_size)){
+            DEBUG
+                printk(KERN_ERR "%s: copy_to_user in read failed\n",MODNAME);
+            return -EMSGSIZE;
+        }
 
-          //list_del(&(head_message->next));
-          instance_by_minor[minor].actual_total_size -= head_m_size;
-          //kfree(head_message->text);
-          //kfree(head_message);
-      }
-      mutex_unlock(&(instance_by_minor[minor].dev_mutex));*/
+        //list_del(&(head_message->next));
+        instance_by_minor[minor].actual_total_size -= head_m_size;
+        //kfree(head_message->text);
+        //kfree(head_message);
+    }
+    mutex_unlock(&(instance_by_minor[minor].dev_mutex));*/
 
     return 0;
 
@@ -246,6 +247,8 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
                 printk("%s: ioctl() has set SET_RECV_TIMEOUT:%llu\n", MODNAME, session->read_timer);
             break;
         case REVOKE_DELAYED_MESSAGES: //2
+            DEBUG
+                printk("%s: ioctl() has called REVOKE_DELAYED_MESSAGES\n", MODNAME);
             break;
         default:
             printk(KERN_ERR "%s: ioctl() has been called with unexpected command: %u\n", MODNAME, command);
