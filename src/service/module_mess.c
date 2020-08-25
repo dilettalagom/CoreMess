@@ -158,6 +158,7 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
         mutex_unlock(&(instance_by_minor[minor].dev_mutex));
 
     }
+    // Most read functions return the number of bytes put into the buffer
     return len - ret;
 
 }
@@ -253,25 +254,35 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
     return 0;
 }
 
+
+static void __del_all_messages(int minor){
+    struct list_head *ptr;
+    message_t* message;
+
+    list_for_each(ptr, &(instance_by_minor[minor].stored_messages)) {
+        message = list_entry(ptr, message_t, next);
+        list_del(&message->next);
+        kfree(message->text);
+        kfree(message);;
+    }
+    list_del(&(instance_by_minor[minor].stored_messages));
+    DEBUG
+        printk("%s: all messages in instance_by_minor[minor].stored_messages have been deleted\n", MODNAME);
+
+}
+
 static int dev_flush(struct file *file, fl_owner_t owner){
     int minor;
-    //struct list_head *ptr;
-    //single_session* session;
 
     minor = get_minor(file);
-    mutex_lock(&(instance_by_minor[minor].dev_mutex));
-
-    /*TODO:
-     * list_for_each(ptr, &(instance_by_minor[minor].all_sessions)) {
-        session = list_entry(ptr, single_session, next);
-        list_del(&session->next);
-        kfree(session);
-    }*/
-    mutex_unlock(&(instance_by_minor[minor].dev_mutex));
-
-
     DEBUG
         printk("%s: somebody called a FLUSH on dev with minor number %d\n", MODNAME, minor);
+
+    //deleting all messagges
+    mutex_lock(&(instance_by_minor[minor].dev_mutex));
+    __del_all_messages(minor);
+    mutex_unlock(&(instance_by_minor[minor].dev_mutex));
+
     return 0;
 }
 
@@ -320,21 +331,25 @@ static int __init add_dev(void) {
 
 }
 
-static void __exit remove_dev(void){
-
-    int i;
+static void __del_all_sessions(device_instance* instance) {
     struct list_head *ptr;
-    struct list_head *tmp;
-    message_t *message;
+    single_session* session;
+    int i;
 
-    for(i=0; i<MINORS; i++){
-        list_for_each_safe(ptr, tmp, &(instance_by_minor[i].stored_messages)) {
-            message = list_entry(ptr, message_t, next);
-            list_del(&(message->next));
-            kfree(message->text);
-            kfree(message);
+    for (i = 0; i < MINORS; i++) {
+        list_for_each(ptr, &(instance[i].all_sessions)) {
+            session = list_entry(ptr, single_session, next);
+            list_del(&session->next);
+            kfree(session);
         }
     }
+    DEBUG
+        printk("%s: all sessions in instance_by_minor[minor].all_sessions have been deleted\n", MODNAME);
+}
+
+static void __exit remove_dev(void){
+
+    __del_all_sessions((instance_by_minor));
 
     unregister_chrdev(Major, DEVICE_NAME);
     printk(KERN_INFO "%s: New device unregistered, it was assigned major number %d\n",MODNAME, Major);

@@ -17,3 +17,9 @@ Use S_IRUGO for a parameter that can be read by the world but cannot be changed;
 S_IRUGO|S_IWUSR allows root to change the parameter. Note that if a parameter is changed by sysfs,
 the value of that parameter as seen by your module changes, but your module is not notified in any other way.
 You should probably not make module parameters writable, unless you are prepared to detect the change and react accordingly.
+
+//https://www.kernel.org/doc/html/latest/core-api/kernel-api.html?highlight=register_chrdev_region
+LIST_HEAD
+-list_for_each_entry_safe_reverse(pos, n, head, member) :iterate backwards over list safe against removal
+
+
