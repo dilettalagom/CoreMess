@@ -141,7 +141,6 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
         return -ENOMEM;
     }
     ret = copy_from_user(temp, buff, len);
-    printk(KERN_ERR "%s: copy_from_user:MESSAGGIO ARRIVATO:%s\n",MODNAME, temp);
 
     if (ret) {
         kfree(temp);
@@ -178,12 +177,9 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
             list_for_each_safe(head, pos, &(instance_by_minor[minor].stored_messages)){
                 message_t *elt;
                 elt = list_first_entry(pos, message_t, next);
-                printk("%s write(), messaggio aggiunto ORAAAA: %s\n",MODNAME, elt->text);
+                printk("%s write(), messaggio aggiunto nella lista: %s\n",MODNAME, elt->text);
             }
         }
-       // new_message = list_first_entry(&(instance_by_minor[minor].stored_messages), message_t, next);
-       // printk("%s write(), messaggio aggiunto ORAAAA: %s\n",MODNAME, new_message->text);
-
 
         mutex_unlock(&(instance_by_minor[minor].dev_mutex));
 
@@ -213,7 +209,7 @@ static int __send_first_message(device_instance* instance, char* buff, ssize_t l
             head_message_len = len;
 
         //send message->text to user
-        ret = copy_to_user(buff, &(head_message->text), head_message_len);
+        ret = copy_to_user(buff, head_message->text, head_message_len);
         if(ret){
             DEBUG
                 printk(KERN_ERR "%s: copy_to_user in __send_first_message failed\n",MODNAME);

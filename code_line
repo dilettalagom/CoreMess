@@ -30,4 +30,13 @@ Two device nodes may have the same major number. An application could open more 
 descriptors, thereby sending the right command to the wrong device. Sending wrong ioctl commands can have catastrophic
 consequences, including damage to hardware. A unique magic number should be encoded into the commands
 
-
+//https://stackoverflow.com/questions/29397364/copy-to-user-and-copy-from-user-for-basic-data-type
+COPY_TO_USER
+When a user passes data to kernel space, this data can be split on several pages, and these pages can be even in swapped out memory.
+In these cases, you'll have to wait for the kernel to swap in the page and get access to the page where the data is in.
+In the case of elementary data types (like int or pointers) it is also true that some architectures (notably x86 intel) don't force the user to align the data so even an integer can be split around a page border.
+You can have access to the first part of you integer, but to wait for the second to get swapped in by the memory manager before the whole thing is accessed.
+You can save some roundtrips by putting all user data in a structure whose pointer is passed to the kernel.
+ You can copy_from_user it as a block and save accesses (and running into the risk of being blocked several times)
+So, and as a conclusion, use the functions even for basic types, as there are plenty of them. Don't assume anything about where the user data can be when running in kernel mode.
+You have access to it, but the kernel virtual addresses of user data have nothing to do with the virtual addresses seen in user mode.

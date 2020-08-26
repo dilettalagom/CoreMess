@@ -95,7 +95,7 @@ int main(int argc, char *argv[]){
             fprintf(stdout, "Sending message to device: %s , %lu\n", mess_cleaned, len);
             ret = write(fd, mess, len);
 
-            fprintf(stdout, "write() returned: %d\n", ret);
+            fprintf(stdout, "write() returned: ret=%d\n", ret);
 
             sleep(1);
 
@@ -105,7 +105,7 @@ int main(int argc, char *argv[]){
                 fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
                 return EXIT_FAILURE;
             }
-            fprintf(stdout, "read() returned: %s\n", mess_read);
+            fprintf(stdout, "read() returned: %s, ret=%d\n", mess_read, ret_read);
 
         }
     }
