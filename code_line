@@ -21,6 +21,7 @@ You should probably not make module parameters writable, unless you are prepared
 //https://www.kernel.org/doc/html/latest/core-api/kernel-api.html?highlight=register_chrdev_region
 LIST_HEAD
 -list_for_each_entry_safe_reverse(pos, n, head, member) :iterate backwards over list safe against removal
+-list_first_entry
 
 //https://tuxthink.blogspot.com/2011/01/creating-ioctl-command.html
 IOCTL_BASE 'k' -> https://ufal.mff.cuni.cz/~jernej/2018/docs/predavanja06.pdf

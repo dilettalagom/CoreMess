@@ -1,4 +1,3 @@
-
 #include <linux/mutex.h>
 #include <linux/list.h>
 
@@ -26,7 +25,7 @@ typedef struct single_session{
 //rappresenta una istanza del driver
 typedef struct device_instance{
 
-    unsigned int actual_total_size;
+    unsigned long actual_total_size;
     struct list_head stored_messages;
     struct list_head all_sessions;
     struct mutex dev_mutex;     //makes access to global structures unique

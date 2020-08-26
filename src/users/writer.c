@@ -14,12 +14,11 @@ int main(int argc, char *argv[]){
     int fd, ret, ret_read;
     unsigned int major, minor;
     unsigned long write_timer;
-    char* mess;
-    char* mess_read;
+    char mess[MAX_MESSAGE_SIZE], mess_read[MAX_MESSAGE_SIZE];
     unsigned long len;
 
-    if(argc != 5){
-        fprintf(stderr, "Usage: sudo %s <filename> <major> <minor> <write_timer_micros>\n", argv[0]);
+    if(argc != 4){
+        fprintf(stderr, "Usage: sudo %s <filename> <major> <minor>\n", argv[0]);
         return(EXIT_FAILURE);
     }
     major = strtoul(argv[2], NULL, 10);
@@ -40,54 +39,62 @@ int main(int argc, char *argv[]){
     }
     fprintf(stdout, "File device opened with fd: %d\n", fd);
 
-    //Setting of write_timer
-    write_timer = strtoul(argv[4], NULL, 10);
-    if (write_timer != 0) {
-        ret = ioctl(fd, SET_SEND_TIMEOUT, write_timer);
-        if (ret == -EINVAL) {
-            fprintf(stderr, "ioctl() has failed: %s\n", strerror(errno));
-            return (EXIT_FAILURE);
-        }
-    }
 
     //TODO: Reading from STDIN content to write on file
     while (!feof(stdin)) {
-        mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
-        mess_read = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
 
-        fprintf(stdout, "\nWrite a new message or a dev_command (REVOKE/QUIT)\n");
+        //Getting input_command or message_to_send to device driver
+        fprintf(stdout, "\nWrite a new message or a dev_command (SEND_TIMEOUT/REVOKE/QUIT)\n");
         if(fscanf(stdin, "%s", mess)<0){
             fprintf(stderr,"Error in scanf: %s\n",strerror(errno));
             exit(EXIT_FAILURE);
         }
         len = strlen(mess);
-        mess = realloc(mess, len);
+        mess[len]='\0';
 
-        // Sending command to device driver
+        //TODO:Revoke all messagges
         if(strcmp(mess, "REVOKE") == 0){
             ret = ioctl(fd, REVOKE_DELAYED_MESSAGES);
             if(ret<0){
                 fprintf(stderr, "ioctl(REVOKE_DELAYED_MESSAGES) failed: %s\n", strerror(errno));
                 return EXIT_FAILURE;
             }
+        //Setting of write_timer
+        }else if(strcmp(mess, "SEND_TIMEOUT") == 0) {
+            fprintf(stdout, "Please, insert SET_SEND_TIMEOUT value: ");
+            if(fscanf(stdin, "%s", mess)<0){
+                fprintf(stderr,"Error in scanf: %s\n",strerror(errno));
+                break;
+            }
+            write_timer = strtoul(mess, NULL, 10);
+            ret = ioctl(fd, SET_SEND_TIMEOUT, write_timer);
+            if(ret<0){
+                fprintf(stderr, "ioctl(SET_SEND_TIMEOUT) failed: %s\n", strerror(errno));
+                return EXIT_FAILURE;
+            }
+        //Releasing file
         }else if(strcmp(mess, "QUIT") == 0){
-            close(fd);
-            fprintf(stdout, "File %s and %d cloesd. See ya.\n", argv[1], fd);
-            return EXIT_SUCCESS;
+                close(fd);
+                fprintf(stdout, "File %s and %d cloesd. See ya.\n", argv[1], fd);
+                return EXIT_SUCCESS;
+        //Writing on file
         }else {
 
             // Write the input into the device file
             fprintf(stdout, "Sending message to device: %s , %lu\n", mess, len);
             ret = write(fd, mess, strlen(mess));
 
-            fprintf(stdout, "write(): %d\n", ret);
+            fprintf(stdout, "write() returned: %d\n", ret);
 
-            //        ret_read = read(fd, mess_read, MAX_MESSAGE_SIZE);
-            //        if (ret_read < 0) {
-            //            fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
-            //        } else {
-            //            printf("You have a new message: %s\n", mess_read);
-            //        }
+            sleep(1);
+
+            ret_read = read(fd, mess_read, MAX_MESSAGE_SIZE);
+            if (ret_read < 0) {
+                fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
+                return EXIT_FAILURE;
+            }
+            fprintf(stdout, "read() returned: %s\n", mess_read);
+
         }
     }
 
