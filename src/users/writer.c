@@ -14,7 +14,8 @@ int main(int argc, char *argv[]){
     int fd, ret, ret_read;
     unsigned int major, minor;
     unsigned long write_timer;
-    char mess[MAX_MESSAGE_SIZE], mess_read[MAX_MESSAGE_SIZE];
+    char mess[MAX_MESSAGE_SIZE];
+    char* mess_cleaned = NULL, *mess_read;
     unsigned long len;
 
     if(argc != 4){
@@ -39,8 +40,6 @@ int main(int argc, char *argv[]){
     }
     fprintf(stdout, "File device opened with fd: %d\n", fd);
 
-
-    //TODO: Reading from STDIN content to write on file
     while (!feof(stdin)) {
 
         //Getting input_command or message_to_send to device driver
@@ -51,12 +50,14 @@ int main(int argc, char *argv[]){
         }
         len = strlen(mess);
         mess[len]='\0';
+        len +=1;
 
         //TODO:Revoke all messagges
         if(strcmp(mess, "REVOKE") == 0){
             ret = ioctl(fd, REVOKE_DELAYED_MESSAGES);
             if(ret<0){
                 fprintf(stderr, "ioctl(REVOKE_DELAYED_MESSAGES) failed: %s\n", strerror(errno));
+                close(fd);
                 return EXIT_FAILURE;
             }
         //Setting of write_timer
@@ -70,24 +71,35 @@ int main(int argc, char *argv[]){
             ret = ioctl(fd, SET_SEND_TIMEOUT, write_timer);
             if(ret<0){
                 fprintf(stderr, "ioctl(SET_SEND_TIMEOUT) failed: %s\n", strerror(errno));
+                close(fd);
                 return EXIT_FAILURE;
             }
         //Releasing file
         }else if(strcmp(mess, "QUIT") == 0){
                 close(fd);
+                free(mess_cleaned);
                 fprintf(stdout, "File %s and %d cloesd. See ya.\n", argv[1], fd);
                 return EXIT_SUCCESS;
         //Writing on file
         }else {
 
+            //clean-up buffer unused characters
+            mess_cleaned = calloc(len, sizeof(char));
+            if(mess_cleaned == NULL){
+                fprintf(stderr, "calloc failed: %s\n", strerror(errno));
+                return EXIT_FAILURE;
+            }
+            memccpy(mess_cleaned, mess, '\0', len);
+
             // Write the input into the device file
-            fprintf(stdout, "Sending message to device: %s , %lu\n", mess, len);
-            ret = write(fd, mess, strlen(mess));
+            fprintf(stdout, "Sending message to device: %s , %lu\n", mess_cleaned, len);
+            ret = write(fd, mess, len);
 
             fprintf(stdout, "write() returned: %d\n", ret);
 
             sleep(1);
 
+            mess_read = calloc(MAX_MESSAGE_SIZE, sizeof(char));
             ret_read = read(fd, mess_read, MAX_MESSAGE_SIZE);
             if (ret_read < 0) {
                 fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));

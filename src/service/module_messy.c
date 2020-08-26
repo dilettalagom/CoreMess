@@ -94,6 +94,7 @@ static int __add_new_message(device_instance* instance, char* temp, size_t len){
     //check if message can be stored
     if (instance->actual_total_size + len > max_storage_size) {
         kfree(temp);
+        printk(KERN_ERR "%s: OOM: this device is full!\n",MODNAME);
         return -ENOSPC;
     }
 
@@ -101,13 +102,11 @@ static int __add_new_message(device_instance* instance, char* temp, size_t len){
     new_message = kmalloc(sizeof(message_t), GFP_KERNEL);
     if (new_message == NULL) {
         kfree(temp);
+        printk(KERN_ERR "%s: kmalloc() failed in __add_new_message()\n", MODNAME);
         return -ENOMEM;
     }
     new_message->text = temp;
     INIT_LIST_HEAD(&(new_message->next));
-
-    DEBUG
-        printk("%s: __add_new_message: new_message->text = %s\n", MODNAME, new_message->text);
 
     //update global device state
     list_add_tail(&(new_message->next), &(instance->stored_messages));
@@ -119,10 +118,9 @@ static int __add_new_message(device_instance* instance, char* temp, size_t len){
 static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t *off) {
 
     int minor, ret = 0;
-    char temp[max_message_size];
+    char* temp;
     single_session* session;
-
-    //message_t* new_message;
+    struct list_head *head, *pos;
 
     minor = get_minor(file);
     DEBUG
@@ -135,19 +133,27 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
         return -EMSGSIZE;
     }
 
-    //get message from user-level
-    ret = copy_from_user((char*)temp, (char*)buff, len);
-    temp[len-ret]= '\0';
-    if (ret) {
+    //get message from user-level (serve un puntatore nuovo ogni volta, con il buffer non funziona. dho!)
+    temp = kmalloc(len,GFP_KERNEL);
+    if (temp == NULL) {
         DEBUG
-            printk(KERN_ERR "%s: copy_from_user could not copy all the bytes\n",MODNAME);
-        //return -EMSGSIZE;
+            printk(KERN_ERR "%s: kmalloc() failed in dev_write()\n", MODNAME);
+        return -ENOMEM;
+    }
+    ret = copy_from_user(temp, buff, len);
+    printk(KERN_ERR "%s: copy_from_user:MESSAGGIO ARRIVATO:%s\n",MODNAME, temp);
+
+    if (ret) {
+        kfree(temp);
+        DEBUG
+            printk(KERN_ERR "%s: copy_from_user in write failed\n",MODNAME);
+        return -EMSGSIZE;
     }
 
     session = (single_session*)file->private_data;
 
-    //TODO: prima di accedere al write_timer dovrei lockare perchè qualcuno potrebbe accedervi da sys mentre sto per usarlo
-    //e cambiarlo. Meglio se lo copio in un valore qui locale
+    /*TODO: prima di accedere al write_timer dovrei lockare perchè qualcuno potrebbe accedervi da sys mentre sto per usarl
+     * e cambiarlo. Meglio se lo copio in un valore qui locale*/
     if (session->write_timer) { //DEFERRED_WRITE
         //TODO
         DEBUG
@@ -163,6 +169,22 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
         DEBUG
             printk("%s write(), new size: %lu\n",MODNAME, instance_by_minor[minor].actual_total_size);
 
+
+        //TODO:cancella le righe sotto-> solo test
+
+        if(!list_empty(&(instance_by_minor[minor].stored_messages))) {
+
+            printk("%s: instance_by_minor[minor].stored_messages not empty: printing...\n", MODNAME);
+            list_for_each_safe(head, pos, &(instance_by_minor[minor].stored_messages)){
+                message_t *elt;
+                elt = list_first_entry(pos, message_t, next);
+                printk("%s write(), messaggio aggiunto ORAAAA: %s\n",MODNAME, elt->text);
+            }
+        }
+       // new_message = list_first_entry(&(instance_by_minor[minor].stored_messages), message_t, next);
+       // printk("%s write(), messaggio aggiunto ORAAAA: %s\n",MODNAME, new_message->text);
+
+
         mutex_unlock(&(instance_by_minor[minor].dev_mutex));
 
     }
@@ -172,7 +194,7 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
 }
 
 
-static int __send_first_message(device_instance* instance, char** buff, ssize_t len){
+static int __send_first_message(device_instance* instance, char* buff, ssize_t len){
 
     int ret = 0;
     message_t* head_message;
@@ -181,19 +203,17 @@ static int __send_first_message(device_instance* instance, char** buff, ssize_t 
     //get first message_t safely
     if(!list_empty(&(instance->stored_messages))) {
         head_message = list_first_entry(&(instance->stored_messages), message_t, next);
-        DEBUG
-            printk( "%s: __send_first_message, head_message->text:%s\n",MODNAME, head_message->text);
+        head_message_len = strlen(head_message->text) + 1;
 
-        head_message_len = strlen(head_message->text);
         DEBUG
-            printk( "%s: __send_first_message, siez:%lu\n",MODNAME, strlen(head_message->text));
+            printk( "%s: __send_first_message, head_message->text:%s, size:%u\n",MODNAME, head_message->text, head_message_len);
 
         //user can request less bytes than the ones stored...
         if(head_message_len > len)
             head_message_len = len;
 
         //send message->text to user
-        ret = copy_to_user(*buff, &(head_message->text), head_message_len);
+        ret = copy_to_user(buff, &(head_message->text), head_message_len);
         if(ret){
             DEBUG
                 printk(KERN_ERR "%s: copy_to_user in __send_first_message failed\n",MODNAME);
@@ -244,13 +264,12 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
             printk("%s: a NO_WAIT_READ has been invoked\n", MODNAME);
 
         mutex_lock(&(instance_by_minor[minor].dev_mutex));
-        ret = __send_first_message(&instance_by_minor[minor], &buff, len);
+        ret = __send_first_message(&instance_by_minor[minor], buff, len);
         DEBUG
             printk("%s read(), new size: %lu\n",MODNAME, instance_by_minor[minor].actual_total_size);
         mutex_unlock(&(instance_by_minor[minor].dev_mutex));
 
     }
-
 
     // Most read functions return the number of bytes put into the buffer
     return ret;
@@ -259,9 +278,38 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
 
 }
 
-static long dev_ioctl(struct file *file, unsigned int command, unsigned long param) {
+static void __del_all_messages(int minor){
+    struct list_head *ptr, *q;
+    message_t* message;
 
+    if(!list_empty(&(instance_by_minor[minor].stored_messages))) {
+        DEBUG
+            printk("%s: instance_by_minor[minor].stored_messages not empty: deleting...\n", MODNAME);
+        list_for_each_safe(ptr, q, &(instance_by_minor[minor].stored_messages)) {
+            message = list_entry(ptr, message_t, next);
+            list_del(&message->next);
+            kfree(message->text);
+            kfree(message);
+        }
+    }
+    instance_by_minor[minor].actual_total_size = 0;
+
+    /*TODO:delete stored_messages IF NEEDED
+     *
+     *DEBUG
+     *printk("%s: instance_by_minor[minor].stored_messages is empty: deleting struct...\n", MODNAME);
+    *list_del(&(instance_by_minor[minor].stored_messages));
+    *DEBUG
+    *   printk("%s: all messages in instance_by_minor[minor].stored_messages have been deleted\n", MODNAME);
+    */
+}
+
+
+static long dev_ioctl(struct file *file, unsigned int command, unsigned long param) {
+    int minor;
     single_session* session;
+
+    minor = get_minor(file);
     session = file->private_data;
 
     printk("%s: ioctl() has been called on dev with (command: %u, value: %lu)\n", MODNAME, command, param);
@@ -284,6 +332,9 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
         case REVOKE_DELAYED_MESSAGES: //27394
             DEBUG
                 printk("%s: ioctl() has called REVOKE_DELAYED_MESSAGES\n", MODNAME);
+            mutex_lock(&instance_by_minor[minor].dev_mutex);
+            __del_all_messages(minor);
+            mutex_unlock(&instance_by_minor[minor].dev_mutex);
             break;
         default:
             printk(KERN_ERR "%s: ioctl() has been called with unexpected command: %u\n", MODNAME, command);
@@ -385,7 +436,7 @@ static void __exit remove_dev(void){
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("dilettalagom");
 MODULE_DESCRIPTION("CoreMess module.");
-MODULE_VERSION("0.01");
+//MODULE_VERSION("0.01");
 
 module_init(add_dev)
 module_exit(remove_dev)

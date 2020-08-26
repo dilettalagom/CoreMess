@@ -25,3 +25,15 @@ static void __del_all_messages(int minor){
         printk("%s: all messages in instance_by_minor[minor].stored_messages have been deleted\n", MODNAME);
 
 }
+
+//Stampa tutta la lista list_head
+
+    if(!list_empty(&(instance_by_minor[minor].stored_messages))) {
+
+        printk("%s: instance_by_minor[minor].stored_messages not empty: printing...\n", MODNAME);
+        list_for_each_safe(head, pos, &(instance_by_minor[minor].stored_messages)){
+            message_t *elt;
+            elt = list_first_entry(pos, message_t, next);
+            printk("%s write(), messaggio aggiunto ORAAAA: %s\n",MODNAME, elt->text);
+        }
+    }

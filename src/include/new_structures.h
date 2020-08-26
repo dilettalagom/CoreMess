@@ -1,5 +1,6 @@
 #include <linux/mutex.h>
 #include <linux/list.h>
+#include <linux/ktime.h>
 
 //Singolo messaggio
 typedef struct message_t{
