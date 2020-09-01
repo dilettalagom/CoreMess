@@ -38,12 +38,15 @@ static int dev_open(struct inode *inode, struct file *file) {
         printk(KERN_ERR "%s: kmalloc() failed in dev_open\n", MODNAME);
         return -ENOMEM; /* Out of memory */
     }
-    DEBUG
-        printk("%s: kmalloc succeded\n", MODNAME);
 
     mutex_init(&session->operation_mutex);
-    session->write_timer = ktime_set(0, 0);
+    session->write_timer = 0;
     session->read_timer = ktime_set(0, 0);
+    session->pending_write_wq = alloc_workqueue("core_mess_wq", WQ_MEM_RECLAIM, 1);
+    if (session->pending_write_wq == NULL) {
+        kfree(session);
+        return -ENOMEM;
+    }
     INIT_LIST_HEAD(&(session->next));
 
     //TODO:hrtimer_init(&(session->read_timer), CLOCK_MONOTONIC, HRTIMER_MODE_REL);
@@ -57,7 +60,7 @@ static int dev_open(struct inode *inode, struct file *file) {
     mutex_unlock(&(instance_by_minor[minor].dev_mutex));
 
     //device opened by a default nop
-    printk("%s: device file successfully opened for object with minor %d\n", MODNAME, minor);
+    printk("%s: Device file successfully opened for object with minor %d\n", MODNAME, minor);
     return 0;
 
 
@@ -76,6 +79,12 @@ static int dev_release(struct inode *inode, struct file *file) {
     session = (single_session*) file->private_data;
 
     mutex_lock(&(instance_by_minor[minor].dev_mutex));
+
+    //deleting all pending writes
+    flush_workqueue(session->pending_write_wq);
+    destroy_workqueue(session->pending_write_wq);
+
+    //delete current session pointer
     list_del(&session->next);
     mutex_unlock(&(instance_by_minor[minor].dev_mutex));
 
@@ -87,40 +96,61 @@ static int dev_release(struct inode *inode, struct file *file) {
 
 }
 
-static int __add_new_message(device_instance* instance, char* temp, size_t len){
 
-    message_t* new_message;
+
+static int __add_new_message(device_instance* instance, message_t* new_message){
+
+    DEBUG
+        printk("%s: __add_new_message %s", MODNAME, new_message->text);
 
     //check if message can be stored
-    if (instance->actual_total_size + len > max_storage_size) {
-        kfree(temp);
+    if (instance->actual_total_size + new_message->len > max_storage_size) {
+        kfree(new_message->text);
+        kfree(new_message);
         printk(KERN_ERR "%s: OOM: this device is full!\n",MODNAME);
         return -ENOSPC;
     }
 
     //create new message
-    new_message = kmalloc(sizeof(message_t), GFP_KERNEL);
-    if (new_message == NULL) {
-        kfree(temp);
-        printk(KERN_ERR "%s: kmalloc() failed in __add_new_message()\n", MODNAME);
-        return -ENOMEM;
-    }
-    new_message->text = temp;
     INIT_LIST_HEAD(&(new_message->next));
 
     //update global device state
     list_add_tail(&(new_message->next), &(instance->stored_messages));
-    instance->actual_total_size += len;
+    instance->actual_total_size += new_message->len;
 
-    return len;
+    return new_message->len;
+}
+
+static void __deferred_add_new_message(struct work_struct *w){
+
+    int ret;
+    pending_write_t* pending_write;
+    struct delayed_work *delayed_work;
+
+    DEBUG
+        printk("%s: sono in una deferred write",MODNAME);
+
+    delayed_work = container_of(w, struct delayed_work, work);
+    pending_write = container_of(delayed_work, pending_write_t, the_deferred_write);
+
+    printk("%s: pending mesg: %s\n", MODNAME, pending_write->pending_message->text);
+
+    //mutex_lock(&instance_by_minor[pending_write->minor].dev_mutex);
+    ret = __add_new_message(&instance_by_minor[pending_write->minor], pending_write->pending_message);
+    if(ret)
+    DEBUG
+        printk("%s: return from __deferred_write", MODNAME);
+
+    //mutex_unlock(&instance_by_minor[pending_write->minor].dev_mutex);
 }
 
 static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t *off) {
 
     int minor, ret = 0;
-    char* temp;
+    message_t* new_message;
     single_session* session;
     struct list_head *head, *pos;
+    pending_write_t* pending_write;
 
     minor = get_minor(file);
     DEBUG
@@ -133,57 +163,86 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
         return -EMSGSIZE;
     }
 
-    //get message from user-level (serve un puntatore nuovo ogni volta, con il buffer non funziona. dho!)
-    temp = kmalloc(len,GFP_KERNEL);
-    if (temp == NULL) {
+    //creating the new message in kernel side
+    new_message = kmalloc(sizeof(new_message),GFP_KERNEL);
+    if(new_message == NULL){
         DEBUG
             printk(KERN_ERR "%s: kmalloc() failed in dev_write()\n", MODNAME);
         return -ENOMEM;
     }
-    ret = copy_from_user(temp, buff, len);
-
+    new_message->text = kmalloc(len, GFP_KERNEL);
+    if(new_message->text == NULL){
+        DEBUG
+            printk(KERN_ERR "%s: kmalloc() failed in dev_write()\n", MODNAME);
+        return -ENOMEM;
+    }
+    ret = copy_from_user(new_message->text, buff, len);
     if (ret) {
-        kfree(temp);
+        kfree(new_message->text);
+        kfree(new_message);
         DEBUG
             printk(KERN_ERR "%s: copy_from_user in write failed\n",MODNAME);
         return -EMSGSIZE;
     }
+    new_message->len = len;
 
     session = (single_session*)file->private_data;
 
-    /*TODO: prima di accedere al write_timer dovrei lockare perchè qualcuno potrebbe accedervi da sys mentre sto per usarl
+    /*TODO: prima di accedere al write_timer dovrei lockare perchè qualcuno potrebbe accedervi da sys mentre sto per usarlo
      * e cambiarlo. Meglio se lo copio in un valore qui locale*/
     if (session->write_timer) { //DEFERRED_WRITE
         //TODO
+        mutex_lock(&session->operation_mutex);
         DEBUG
             printk("%s: a DEFERRED WRITE has been invoked\n", MODNAME);
 
+        //create pending_write struct (initializes a work item)
+        pending_write = kmalloc(sizeof(pending_write), GFP_ATOMIC); //non blocking memory allocation
+        if(pending_write == NULL) {
+            DEBUG
+                printk(KERN_ERR "%s: kmalloc() failed in dev_write()\n", MODNAME);
+            return -ENOMEM;
+        }
+        pending_write->minor = minor;
+        pending_write->pending_message = new_message;
+        INIT_LIST_HEAD(&(pending_write->next));
+
+        //init deferred write work
+        INIT_DELAYED_WORK(&(pending_write->the_deferred_write), (void*) __deferred_add_new_message);
+
+        //update global device state about pending write
+        //list_add_tail(&(pending_write->next), &(session->pending_write_wq));
+
+        //accoda il deferred work!! TODO
+        queue_delayed_work(session->pending_write_wq, //work_queue
+                           &(pending_write->the_deferred_write), //new task
+                           session->write_timer); //time_delay in jiffies
+        mutex_unlock(&session->operation_mutex);
     }else { //NO_WAIT_WRITE
 
         DEBUG
             printk("%s: a NO_WAIT_WRITE has been invoked\n", MODNAME);
 
         mutex_lock(&(instance_by_minor[minor].dev_mutex));
-        ret = __add_new_message(&instance_by_minor[minor], temp, len);
+        ret = __add_new_message(&instance_by_minor[minor], new_message);
         DEBUG
             printk("%s write(), new size: %lu\n",MODNAME, instance_by_minor[minor].actual_total_size);
 
-
-        //TODO:cancella le righe sotto-> solo test
-
-        if(!list_empty(&(instance_by_minor[minor].stored_messages))) {
-
-            printk("%s: instance_by_minor[minor].stored_messages not empty: printing...\n", MODNAME);
-            list_for_each_safe(head, pos, &(instance_by_minor[minor].stored_messages)){
-                message_t *elt;
-                elt = list_first_entry(pos, message_t, next);
-                printk("%s write(), messaggio aggiunto nella lista: %s\n",MODNAME, elt->text);
-            }
-        }
-
         mutex_unlock(&(instance_by_minor[minor].dev_mutex));
-
     }
+    //TODO:cancella le righe sotto-> solo test ***********************************
+
+    if(!list_empty(&(instance_by_minor[minor].stored_messages))) {
+
+        printk("%s: instance_by_minor[minor].stored_messages not empty: printing...\n", MODNAME);
+        list_for_each_safe(head, pos, &(instance_by_minor[minor].stored_messages)){
+            message_t *elt;
+            elt = list_first_entry(pos, message_t, next);
+            printk("%s: write(), messaggio aggiunto nella lista: %s\n",MODNAME, elt->text);
+        }
+    }
+    //****************************************************************************
+
     // Most write functions return the number of bytes put into the buffer
     return ret;
 
@@ -218,7 +277,7 @@ static int __send_first_message(device_instance* instance, char* buff, ssize_t l
 
         //update global device state
         list_del(&head_message->next);
-        instance->actual_total_size -= strlen(head_message->text); //...but the device will be reduced by the exact size anyway
+        instance->actual_total_size -= strlen(head_message->text)+1; //...but the device will be reduced by the exact size anyway
 
         //dealloc head of instance->stored_messages
         kfree(head_message->text);
@@ -255,6 +314,9 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
         //TODO
         DEBUG
             printk("%s: a DEFERRED READ has been invoked\n", MODNAME);
+
+        //wait_event_interruptible_hrtimeout((instance_by_minor[minor].deferred_read), NULL, session->read_timer);
+
     }else {
         DEBUG
             printk("%s: a NO_WAIT_READ has been invoked\n", MODNAME);
@@ -313,19 +375,19 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
     switch (command){
         case SET_SEND_TIMEOUT: //27392
             mutex_lock(&session->operation_mutex);
-            session->write_timer = ktime_set(0, param*1000); //param : microsecs*1000=ns
+            session->write_timer = ((unsigned long) param * HZ) /1000; /* HZ = 1 second in jiffies -> param in milliseconds */
             DEBUG
-                printk("%s: ioctl() has set SET_SEND_TIMEOUT:%llu\n", MODNAME, session->write_timer);
+                printk("%s: ioctl() has set SET_SEND_TIMEOUT:%lu\n", MODNAME, session->write_timer);
             mutex_unlock(&session->operation_mutex);
             break;
         case SET_RECV_TIMEOUT: //27393 ?
             mutex_lock(&session->operation_mutex);
-            session->read_timer = ktime_set(0, param*1000);
+            session->read_timer = ktime_set(0, param*1000); //param : microsecs*1000=ns
             DEBUG
                 printk("%s: ioctl() has set SET_RECV_TIMEOUT:%llu\n", MODNAME, session->read_timer);
             mutex_unlock(&session->operation_mutex);
             break;
-        case REVOKE_DELAYED_MESSAGES: //27394
+        case REVOKE_DELAYED_MESSAGES: //27394 -> TODO: deve cancellare tutti i deferred reader/writers
             DEBUG
                 printk("%s: ioctl() has called REVOKE_DELAYED_MESSAGES\n", MODNAME);
             mutex_lock(&instance_by_minor[minor].dev_mutex);
@@ -340,7 +402,7 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
 }
 
 
-
+//TODO: tutti i thread in reader bloccati devono ritornare con errore e i delayed_messages eliminati
 static int dev_flush(struct file *file, fl_owner_t owner){
     int minor;
 
@@ -383,6 +445,9 @@ static int __init add_dev(void) {
         mutex_init(&(instance_by_minor->dev_mutex));
 
         //TODO:deferred structs
+        INIT_LIST_HEAD(&instance_by_minor[i].pending_messages);
+        init_waitqueue_head(&instance_by_minor[i].deferred_read);
+
     }
 
     Major = __register_chrdev(0, 0, MINORS, DEVICE_NAME, &fops);

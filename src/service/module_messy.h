@@ -8,7 +8,10 @@
 #include <linux/pid.h>		/* For pid types */
 #include <linux/tty.h>		/* For the tty declarations */
 #include <linux/version.h>	/* For LINUX_VERSION_CODE */
-
+#include <linux/uaccess.h>  /* copy_to/from_user */
+#include <linux/workqueue.h> /* work_queus */
+#include <linux/jiffies.h>
+#include  <asm/param.h> /* for HZ */
 
 #include "../include/config.h"
 #include "../include/new_structures.h"

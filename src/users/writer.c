@@ -99,13 +99,13 @@ int main(int argc, char *argv[]){
 
             sleep(1);
 
-            mess_read = calloc(MAX_MESSAGE_SIZE, sizeof(char));
-            ret_read = read(fd, mess_read, MAX_MESSAGE_SIZE);
-            if (ret_read < 0) {
-                fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
-                return EXIT_FAILURE;
-            }
-            fprintf(stdout, "read() returned: %s, ret=%d\n", mess_read, ret_read);
+//            mess_read = calloc(MAX_MESSAGE_SIZE, sizeof(char));
+//            ret_read = read(fd, mess_read, MAX_MESSAGE_SIZE);
+//            if (ret_read < 0) {
+//                fprintf(stderr, "Could not read a new message: %s\n", strerror(errno));
+//                return EXIT_FAILURE;
+//            }
+//            fprintf(stdout, "read() returned: %s, ret=%d\n", mess_read, ret_read);
 
         }
     }

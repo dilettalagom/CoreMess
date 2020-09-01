@@ -40,3 +40,28 @@ You can save some roundtrips by putting all user data in a structure whose point
  You can copy_from_user it as a block and save accesses (and running into the risk of being blocked several times)
 So, and as a conclusion, use the functions even for basic types, as there are plenty of them. Don't assume anything about where the user data can be when running in kernel mode.
 You have access to it, but the kernel virtual addresses of user data have nothing to do with the virtual addresses seen in user mode.
+
+//https://linux-kernel-labs.github.io/refs/heads/master/labs/deferred_work.html
+struct delayed_work - it schedules a task to run after at least a given time interval
+A delayed work uses a timer to run after the specified time interval. The calls with this type of work are similar to those for
+struct work_struct, but has _delayed in the functions names.
+WORK_QUEUES
+Tasklets run in software interrupt context with the result that all tasklet code
+must be atomic. Instead, workqueue functions run in the context of a special
+kernel process; as a result, they have more flexibility. In particular, workqueue
+functions can sleep.
+-wait_event_hrtimeout
+-wait_event_interruptible_hrtimeout
+
+xml.com/ldd/chapter/book/ch05.html
+
+//https://linux-kernel-labs.github.io/refs/heads/master/labs/deferred_work.html#:~:text=Deferred%20work%20is%20a%20class,the%20type%20of%20deferred%20work.
+DELAYED_WORK
+A delayed work uses a timer to run after the specified time interval. The calls with this type of work are similar to those for struct work_struct, but has _delayed in the functions names.
+
+ALLOC_WORKQUEUE
+https://www.kernel.org/doc/html/latest/core-api/workqueue.html
+alloc_workqueue() allocates a wq. The original create_*workqueue() functions are deprecated and scheduled for removal.
+alloc_workqueue() takes three arguments - @``name``, @flags and @max_active. @name is the name of the wq and also used as the name of the rescuer thread if there is one.
+WQ_MEM_RECLAIM
+All wq which might be used in the memory reclaim paths MUST have this flag set. The wq is guaranteed to have at least one execution context regardless of memory pressure.
