@@ -12,10 +12,16 @@ typedef struct message_t{
     struct list_head next;
 }message_t;
 
+typedef struct pending_read_t{
+    int minor;
+    long num_pending_read;
+    struct list_head next;
+}pending_read_t;
+
 typedef struct pending_write_t{
     int minor;
     message_t* pending_message;
-    struct delayed_work the_deferred_write;
+    struct delayed_work the_deferred_write_work;
     struct list_head next;
 }pending_write_t;
 
@@ -27,6 +33,7 @@ typedef struct single_session{
     //unsigned long read_timer;
     ktime_t read_timer;
     struct hrtimer hr_timer;
+    struct list_head pending_defwrite_structs; //messages that must be stored in <stored_messages>
     struct workqueue_struct* pending_write_wq;
     struct list_head next;
 
@@ -38,7 +45,6 @@ typedef struct device_instance{
 
     unsigned long actual_total_size;
     struct list_head stored_messages; //messages already stored
-    struct list_head pending_messages; //messages that must be stored in <stored_messages>
     struct list_head all_sessions;
     struct mutex dev_mutex;     //makes access to global structures unique
     wait_queue_head_t deferred_read; //wait_queue dinamically allocated

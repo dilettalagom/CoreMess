@@ -3,6 +3,11 @@ $ echo ciao > my_prova
 $ cat my_prova
 >ciao
 
+
+HLIST-> bug in list_head
+https://medium.com/@414apache/kernel-data-structures-linkedlist-b13e4f8de4bf
+http://lxr.linux.no/linux+v2.6.34/include/linux/list.h
+
 //https://www.oreilly.com/library/view/linux-device-drivers/0596000081/ch03s04.html
 void *private_data;
 The open system call sets this pointer to NULL before calling the open method for the driver.
