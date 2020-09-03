@@ -10,7 +10,6 @@ set(SOURCE_FILES
         src/include/config.h
 #        src/service/module_messy.c src/service/module_messy.h src/include/new_structures.h
 #        src/users/writer.c src/users/reader.c
-#        src/service/usleep.c
         src/test.c)
 
 add_executable(CoreMess ${SOURCE_FILES})

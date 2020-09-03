@@ -5,6 +5,7 @@ $ cat my_prova
 
 
 HLIST-> bug in list_head
+https://lwn.net/Articles/336255/
 https://medium.com/@414apache/kernel-data-structures-linkedlist-b13e4f8de4bf
 http://lxr.linux.no/linux+v2.6.34/include/linux/list.h
 

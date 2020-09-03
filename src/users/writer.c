@@ -43,7 +43,7 @@ int main(int argc, char *argv[]){
     while (!feof(stdin)) {
 
         //Getting input_command or message_to_send to device driver
-        fprintf(stdout, "\nWrite a new message or a dev_command (SEND_TIMEOUT/REVOKE/QUIT)\n");
+        fprintf(stdout, "\nWrite a new message or a dev_command (SEND_TIMEOUT/REVOKE/DELETE/QUIT)\n");
         if(fscanf(stdin, "%s", mess)<0){
             fprintf(stderr,"Error in scanf: %s\n",strerror(errno));
             exit(EXIT_FAILURE);
@@ -63,26 +63,33 @@ int main(int argc, char *argv[]){
         //Setting of write_timer
         }else if(strcmp(mess, "SEND_TIMEOUT") == 0) {
             fprintf(stdout, "Please, insert SET_SEND_TIMEOUT value: ");
-            if(fscanf(stdin, "%s", mess)<0){
-                fprintf(stderr,"Error in scanf: %s\n",strerror(errno));
+            if (fscanf(stdin, "%s", mess) < 0) {
+                fprintf(stderr, "Error in scanf: %s\n", strerror(errno));
                 break;
             }
             write_timer = strtoul(mess, NULL, 10);
             ret = ioctl(fd, SET_SEND_TIMEOUT, write_timer);
-            if(ret<0){
+            if (ret < 0) {
                 fprintf(stderr, "ioctl(SET_SEND_TIMEOUT) failed: %s\n", strerror(errno));
+                close(fd);
+                return EXIT_FAILURE;
+            }
+        //Delete all stored messages
+        }else if (strcmp(mess, "DELETE") == 0 ){
+            ret = ioctl(fd, DELETE_ALL_MESSAGES);
+            if(ret<0){
+                fprintf(stderr, "ioctl(DELETE_ALL_MESSAGES) failed: %s\n", strerror(errno));
                 close(fd);
                 return EXIT_FAILURE;
             }
         //Releasing file
         }else if(strcmp(mess, "QUIT") == 0){
-                close(fd);
-                free(mess_cleaned);
-                fprintf(stdout, "File %s and %d cloesd. See ya.\n", argv[1], fd);
-                return EXIT_SUCCESS;
+            close(fd);
+            free(mess_cleaned);
+            fprintf(stdout, "File %s and %d cloesd. See ya.\n", argv[1], fd);
+            return EXIT_SUCCESS;
         //Writing on file
         }else {
-
             //clean-up buffer unused characters
             mess_cleaned = calloc(len, sizeof(char));
             if(mess_cleaned == NULL){

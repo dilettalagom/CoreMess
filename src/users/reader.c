@@ -70,7 +70,7 @@ int main(int argc, char *argv[]){
                 break;
         }
         fflush(stdout);
-        sleep(10);
+        sleep(5);
     }
     return EXIT_SUCCESS;
 }

@@ -11,5 +11,6 @@
 #define SET_SEND_TIMEOUT         _IO(IOC_BASE_NUM, 0)
 #define SET_RECV_TIMEOUT         _IO(IOC_BASE_NUM, 1)
 #define REVOKE_DELAYED_MESSAGES  _IO(IOC_BASE_NUM, 2)
+#define DELETE_ALL_MESSAGES      _IO(IOC_BASE_NUM, 3)
 
 #endif
