@@ -50,9 +50,8 @@ static int dev_open(struct inode *inode, struct file *file) {
         kfree(session);
         return -ENOMEM;
     }
-    INIT_LIST_HEAD(&session->next);
 
-    //TODO:hrtimer_init(&(session->read_timer), CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+    INIT_LIST_HEAD(&session->next);
 
     file->private_data = (void *) session;
 
@@ -118,6 +117,10 @@ static int __add_new_message(device_instance* instance, message_t* new_message){
     //update global device state
     list_add_tail(&new_message->next, &instance->stored_messages);
     instance->actual_total_size += new_message->len;
+    __atomic_fetch_add(&instance->num_pending_read, 1, __ATOMIC_SEQ_CST);
+
+    //notify the readers_wake_up that a new message is ready
+    wake_up(&instance->deferred_read);
     mutex_unlock(&instance->dev_mutex);
 
     return new_message->len;
@@ -228,8 +231,8 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
             printk("%s write(), new size: %lu\n",MODNAME, instance_by_minor[minor].actual_total_size);
 
     }
-    //TODO:cancella le righe sotto-> solo test ***********************************
 
+    //TODO:cancella le righe sotto-> solo test ***********************************
     mutex_lock(&(instance_by_minor[minor].dev_mutex));
     if(!list_empty(&(instance_by_minor[minor].stored_messages))) {
 
@@ -240,6 +243,7 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
             printk("%s: write(), messaggio aggiunto nella lista: %s\n",MODNAME, elt->text);
         }
     }
+    printk("%s: write(), messaggi disponibili: %lu\n",MODNAME, instance_by_minor->num_pending_read);
     mutex_unlock(&(instance_by_minor[minor].dev_mutex));
 
     //TODO:****************************************************************************
@@ -256,6 +260,7 @@ static int __send_first_message(device_instance* instance, char* buff, ssize_t l
     message_t* head_message;
     unsigned int head_message_len;
 
+    mutex_lock(&instance->dev_mutex);
     //get first message_t safely
     if(!list_empty(&(instance->stored_messages))) {
         head_message = list_first_entry(&(instance->stored_messages), message_t, next);
@@ -279,35 +284,33 @@ static int __send_first_message(device_instance* instance, char* buff, ssize_t l
         //update global device state
         list_del(&head_message->next);
         instance->actual_total_size -= head_message->len; //...but the device will be reduced by the exact size anyway
-
+        __atomic_fetch_sub(&instance->num_pending_read,  1, __ATOMIC_SEQ_CST);
         //dealloc head of instance->stored_messages
         kfree(head_message->text);
         kfree(head_message);
 
+        mutex_unlock(&instance->dev_mutex);
         return (int)head_message_len - ret;
     }
 
     DEBUG
-        printk("%s: nothing to read in instance_by_minor[minor].stored_messages\n",MODNAME);
+        printk("%s: read() SHOULD NOT BE HERE!!\n",MODNAME);
+    mutex_unlock(&instance->dev_mutex);
     return ret;
 }
 
 
 static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) {
 
-    int minor, ret = 0;
+    /*TODO: se ho un timeout aspetto finchè c'è un messaggio o scade
+     * se non ho un timeout ma non ci sono messaggi ritorno*/
+    int minor, back_from_sleep, ret = -1;
     single_session* session;
+
 
     minor = get_minor(file);
     DEBUG
         printk("%s: somebody called a READ on dev with minor number %d\n", MODNAME, minor);
-
-    //check for the requested message size
-    if (len > max_message_size) {
-        DEBUG
-            printk(KERN_ERR "%s: the requested message is bigger than the max_message_size\n",MODNAME);
-        return -EMSGSIZE;
-    }
 
     session = (single_session*)file->private_data;
 
@@ -316,18 +319,40 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
         DEBUG
             printk("%s: a DEFERRED READ has been invoked\n", MODNAME);
 
-        //TODO wait_event_interruptible_hrtimeout((instance_by_minor[minor].deferred_read), NULL, session->read_timer);
+        back_from_sleep = wait_event_interruptible_hrtimeout(instance_by_minor[minor].deferred_read, //wait_queue
+                instance_by_minor[minor].num_pending_read > 0, //condition to sleep on
+                session->read_timer); //hr_timer
+        switch (back_from_sleep){
+            case 0:
+                //new message available to read
+                DEBUG
+                    printk("%s: new message -> reading...\n", MODNAME);
+                ret = __send_first_message(&instance_by_minor[minor], buff, len);
+                break;
+            case -ETIME:
+                //timeout expired: nothing to read
+                DEBUG
+                    printk("%s: timeout expired -> no messages\n", MODNAME);
+                break;
+            case -ERESTARTSYS:
+                //interrotta da un segnale
 
-    }else {
-        DEBUG
-            printk("%s: a NO_WAIT_READ has been invoked\n", MODNAME);
+                DEBUG
+                    printk("%s: ERESTARTSYS -> error (?)\n", MODNAME);
+                ret = -ERESTART;
+                break;
+            default:
+                printk(KERN_ERR "%s: read() has returned with unexpected ret: %d\n", MODNAME, back_from_sleep);
+                return -EINVAL; /* Invalid argument */
+        }
 
-        mutex_lock(&(instance_by_minor[minor].dev_mutex));
+    }else if(instance_by_minor[minor].num_pending_read > 0 ) { //NO_WAIT READ
+
+        DEBUG printk("%s: a NO_WAIT_READ has been invoked\n", MODNAME);
+
+
         ret = __send_first_message(&instance_by_minor[minor], buff, len);
-        DEBUG
-            printk("%s read(), new size: %lu\n",MODNAME, instance_by_minor[minor].actual_total_size);
-        mutex_unlock(&(instance_by_minor[minor].dev_mutex));
-
+        DEBUG printk("%s read(), new size: %lu\n", MODNAME, instance_by_minor[minor].actual_total_size);
     }
 
     // Most read functions return the number of bytes put into the buffer
@@ -472,6 +497,7 @@ static int __init add_dev(void) {
         mutex_init(&instance_by_minor->dev_mutex);
 
         //TODO:deferred read structs
+        instance_by_minor->num_pending_read = 0;
         init_waitqueue_head(&instance_by_minor[i].deferred_read);
 
     }
@@ -483,8 +509,6 @@ static int __init add_dev(void) {
     }
 
     printk(KERN_INFO "%s: New device registered, it is assigned major number %d\n", MODNAME, Major);
-    DEBUG
-        printk(KERN_DEBUG "%s: init della coda all'indirizzo %p\n", MODNAME, &instance_by_minor[0].all_sessions);
     return 0;
 
 }

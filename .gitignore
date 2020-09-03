@@ -1,6 +1,7 @@
 .idea
 /BCK
 /src/service/*.cmd
+/src/service/*.mod
 /src/service/*.o
 /src/service/.cache.mk
 /src/service/*.mod.*

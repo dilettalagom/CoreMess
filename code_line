@@ -70,3 +70,6 @@ alloc_workqueue() allocates a wq. The original create_*workqueue() functions are
 alloc_workqueue() takes three arguments - @``name``, @flags and @max_active. @name is the name of the wq and also used as the name of the rescuer thread if there is one.
 WQ_MEM_RECLAIM
 All wq which might be used in the memory reclaim paths MUST have this flag set. The wq is guaranteed to have at least one execution context regardless of memory pressure.
+
+WAIT_EVENT_QUEUE
+https://www.xml.com/ldd/chapter/book/ch05.html
