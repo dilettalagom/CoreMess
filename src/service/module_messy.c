@@ -165,7 +165,7 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
     if (len > max_message_size) {
         DEBUG
             printk(KERN_ERR "%s: the new message is bigger than the max_message_size\n",MODNAME);
-        return -EMSGSIZE;
+        return -EMSGSIZE; /* Message too long */
     }
 
     //creating the new message in kernel side
@@ -187,7 +187,7 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
         kfree(new_message);
         DEBUG
             printk(KERN_ERR "%s: copy_from_user in write failed\n",MODNAME);
-        return -EMSGSIZE;
+        return -EMSGSIZE; /* Message too long */
     }
     new_message->len = len;
 
@@ -263,7 +263,6 @@ static int __send_first_message(device_instance* instance, char* buff, ssize_t l
     int ret = 0;
     message_t* head_message;
     unsigned int head_message_len;
-    char *revoke_buff;
 
     mutex_lock(&instance->dev_mutex);
 
@@ -284,7 +283,7 @@ static int __send_first_message(device_instance* instance, char* buff, ssize_t l
         if(ret){
             DEBUG
                 printk(KERN_ERR "%s: copy_to_user in __send_first_message failed\n",MODNAME);
-            return -EMSGSIZE;
+            return -EMSGSIZE; /* Message too long */
         }
 
         //update global device state
@@ -297,20 +296,17 @@ static int __send_first_message(device_instance* instance, char* buff, ssize_t l
 
         mutex_unlock(&instance->dev_mutex);
         return (int)head_message_len - ret;
-    } else {
-        DEBUG printk("%s: read() called by !!\n", MODNAME);
-
-        revoke_buff = "a REVOKE has been called.\0";
-        copy_to_user(buff, revoke_buff, strlen(revoke_buff));
     }
+
     mutex_unlock(&instance->dev_mutex);
     return ret;
 }
 
 
+
 static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) {
 
-    int minor, back_from_sleep, ret = -1;
+    int minor, back_from_sleep, ret = 0;
     single_session* session;
     ktime_t read_timer;
 
@@ -327,41 +323,41 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
     mutex_unlock(&session->operation_mutex);
 
     if(read_timer){//DEFERRED_READ
-        //TODO
         DEBUG
             printk("%s: a DEFERRED READ has been invoked\n", MODNAME);
 
         back_from_sleep = wait_event_interruptible_hrtimeout(instance_by_minor[minor].deferred_read, //wait_queue
-                                                             instance_by_minor[minor].num_pending_read > 0 , //condition to sleep on
-                                                             read_timer); //hr_timer
+                instance_by_minor[minor].num_pending_read > 0  || instance_by_minor[minor].flush_readers == true, //condition to sleep on
+                read_timer); //hr_timer
         switch (back_from_sleep){
             case 0:
-                //new message available to read
-                DEBUG
-                    printk("%s: new message -> reading...\n", MODNAME);
-                ret = __send_first_message(&instance_by_minor[minor], buff, len);
-                break;
+                //flush all readers
+                if(instance_by_minor[minor].flush_readers == true){
+                    mutex_lock(&instance_by_minor[minor].dev_mutex);
+                    instance_by_minor[minor].flush_readers = false;
+                    mutex_unlock(&instance_by_minor[minor].dev_mutex);
+                    return -EINTR; /* Interrupted system call */
+                }else {
+                    //new message available to read
+                    return __send_first_message(&instance_by_minor[minor], buff, len);
+                }
             case -ETIME:
                 //timeout expired: nothing to read
                 DEBUG
                     printk("%s: timeout expired -> no messages\n", MODNAME);
-                break;
+                return -ETIME;
             case -ERESTARTSYS:
                 //interrotta da un segnale
-
                 DEBUG
                     printk("%s: ERESTARTSYS -> error (?)\n", MODNAME);
-                ret = -ERESTART;
-                break;
+                return -ERESTART;
             default:
                 printk(KERN_ERR "%s: read() has returned with unexpected ret: %d\n", MODNAME, back_from_sleep);
                 return -EINVAL; /* Invalid argument */
         }
-
     }else if(instance_by_minor[minor].num_pending_read > 0 ) { //NO_WAIT READ
 
         DEBUG printk("%s: a NO_WAIT_READ has been invoked\n", MODNAME);
-
 
         ret = __send_first_message(&instance_by_minor[minor], buff, len);
         DEBUG printk("%s read(), new size: %lu\n", MODNAME, instance_by_minor[minor].actual_total_size);
@@ -371,12 +367,14 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
     return ret;
 
 }
-/*TODO:
- * static void __del_all_deferred_read(int minor){
- * }
- */
 
+static void __del_all_deferred_read(int minor){
+    DEBUG
+        printk("%s: i'm in __del_all_deferred_read\n", MODNAME);
+    instance_by_minor[minor].flush_readers = true;
 
+    wake_up(&instance_by_minor[minor].deferred_read);
+}
 
 
 static void __del_all_deferred_write(single_session* session) {
@@ -459,13 +457,13 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
                 printk("%s: ioctl() has set SET_RECV_TIMEOUT:%llu\n", MODNAME, session->read_timer);
             mutex_unlock(&session->operation_mutex);
             break;
-        case REVOKE_DELAYED_MESSAGES: //27394 -> TODO: deve cancellare tutti i deferred reader
+        case REVOKE_DELAYED_MESSAGES: //27394
             DEBUG
                 printk("%s: ioctl() has called REVOKE_DELAYED_MESSAGES\n", MODNAME);
             mutex_lock(&instance_by_minor[minor].dev_mutex);
             __del_all_messages(minor);
             __del_all_deferred_write(session);
-            //TODO:__del_all_deferred_read(session);
+            __del_all_deferred_read(minor);
             mutex_unlock(&instance_by_minor[minor].dev_mutex);
             break;
         case DELETE_ALL_MESSAGES: //27395
@@ -483,7 +481,6 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
 }
 
 
-//TODO: tutti i thread in reader bloccati devono ritornare con errore e i delayed_messages eliminati
 static int dev_flush(struct file *file, fl_owner_t owner){
 
     int minor = get_minor(file);
@@ -494,6 +491,7 @@ static int dev_flush(struct file *file, fl_owner_t owner){
         printk("%s: somebody called a FLUSH on dev with minor number %d\n", MODNAME, minor);
     mutex_lock(&instance_by_minor[minor].dev_mutex);
     __del_all_deferred_write(session);
+    __del_all_deferred_read(minor);
     mutex_unlock(&instance_by_minor[minor].dev_mutex);
 
     return 0;
@@ -527,10 +525,11 @@ static int __init add_dev(void) {
         INIT_LIST_HEAD(&instance_by_minor[i].all_sessions);
 
         //per rendere l'accesso alle strutture globali univoco
-        mutex_init(&instance_by_minor->dev_mutex);
+        mutex_init(&instance_by_minor[i].dev_mutex);
 
-        //TODO:deferred read structs
-        instance_by_minor->num_pending_read = 0;
+        //deferred read structs
+        instance_by_minor[i].flush_readers = false;
+        instance_by_minor[i].num_pending_read = 0;
         init_waitqueue_head(&instance_by_minor[i].deferred_read);
 
     }

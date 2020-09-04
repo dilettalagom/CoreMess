@@ -32,9 +32,9 @@ typedef struct single_session{
 
     struct mutex operation_mutex;
     unsigned long write_timer;
+    //unsigned long read_timer;
     ktime_t read_timer;
     struct list_head pending_defwrite_structs; //workstruct for deferred messages that must be stored in <stored_messages>
-    //TODO:struct list_head pending_defread_structs; //workstruct for deferred messages that must be stored in <stored_messages>
     struct workqueue_struct* pending_write_wq;
     struct list_head next;
 
@@ -50,5 +50,6 @@ typedef struct device_instance{
     struct mutex dev_mutex;     //makes access to global structures unique
     long num_pending_read;
     wait_queue_head_t deferred_read; //wait_queue dinamically allocated
+    bool flush_readers; //condition for wait_queue_readers
 
 } device_instance;

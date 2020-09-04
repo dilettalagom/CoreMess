@@ -6,9 +6,14 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/sysmacros.h>
+#include <signal.h>
 
+void sighandler(int sig_num)
+{
+    // Reset handler to catch SIGTSTP next time
+    signal(SIGTSTP, sighandler);
+    exit(EXIT_SUCCESS);
+}
 
 int main(int argc, char *argv[]){
 
@@ -50,26 +55,15 @@ int main(int argc, char *argv[]){
     }
 
     mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
-
+    signal(SIGTSTP, sighandler);
     // Reading new messagges from file
     while (1) {
 
         ret = read(fd, mess, MAX_MESSAGE_SIZE);
-        switch (ret) {
-            case -1:
-                fprintf(stdout, "There aren't new messages for you. Sorry.\n");
-                break;
-            case -ERESTART:
-                fprintf(stderr, "An error occurred (ERESTART): %s\n", strerror(errno));
-                break;
-            case -EINVAL:
-                fprintf(stderr, "An error occurred (EINVAL): %s\n", strerror(errno));
-                break;
-            default:
-                fprintf(stdout, "You have a new message: %s\n", mess);
-                break;
-        }
-        fflush(stdout);
+        if (ret <= 0)
+            fprintf(stdout, "There aren't new messages. Sorry. %s\n", strerror(errno));
+        else
+            fprintf(stdout, "You have a new message: %s. ret:%d\n", mess, ret);
         sleep(5);
     }
     return EXIT_SUCCESS;
