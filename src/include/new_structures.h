@@ -12,11 +12,11 @@ typedef struct message_t{
     struct list_head next;
 }message_t;
 
-typedef struct pending_read_t{
-    int minor;
-    long num_pending_read;
+//Deferred readers
+typedef struct read_subscription_t{
+    bool flush_me;
     struct list_head next;
-}pending_read_t;
+}read_subscription_t;
 
 //Deferred writers
 typedef struct pending_write_t{
@@ -29,15 +29,12 @@ typedef struct pending_write_t{
 //Metadati privati per singola sessione -> più single_session per stesso (major, minor)
 //rappresenta un singolo user utente (writer o rider)
 typedef struct single_session{
-
     struct mutex operation_mutex;
     unsigned long write_timer;
-    //unsigned long read_timer;
     ktime_t read_timer;
     struct list_head pending_defwrite_structs; //workstruct for deferred messages that must be stored in <stored_messages>
     struct workqueue_struct* pending_write_wq;
     struct list_head next;
-
 }single_session;
 
 //Metadati globali per fd -> uno per ogni MINOR
@@ -48,8 +45,8 @@ typedef struct device_instance{
     struct list_head stored_messages; //messages already stored
     struct list_head all_sessions;
     struct mutex dev_mutex;     //makes access to global structures unique
-    long num_pending_read;
+    long num_pending_read; //condition for wakeup readers
     wait_queue_head_t deferred_read; //wait_queue dinamically allocated
-    bool flush_readers; //condition for wait_queue_readers
+    struct list_head readers_subscriptions; //condition for flushing readers
 
 } device_instance;

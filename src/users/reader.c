@@ -64,7 +64,7 @@ int main(int argc, char *argv[]){
             fprintf(stdout, "There aren't new messages. Sorry. %s\n", strerror(errno));
         else
             fprintf(stdout, "You have a new message: %s. ret:%d\n", mess, ret);
-        sleep(5);
+        sleep(2);
     }
     return EXIT_SUCCESS;
 }
