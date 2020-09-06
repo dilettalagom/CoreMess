@@ -11,7 +11,6 @@
 void sighandler(int sig_num)
 {
     // Reset handler to catch SIGTSTP next time
-    signal(SIGTSTP, sighandler);
     exit(EXIT_SUCCESS);
 }
 
@@ -56,6 +55,7 @@ int main(int argc, char *argv[]){
 
     mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
     signal(SIGTSTP, sighandler);
+    signal(SIGINT, sighandler);
     // Reading new messagges from file
     while (1) {
 
