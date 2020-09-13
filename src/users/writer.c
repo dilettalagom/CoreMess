@@ -8,6 +8,12 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <signal.h>
+
+void sig_handler(int sig_num){
+    fprintf(stdout, "WriterProcess has been stopped. See ya.\n");
+    exit(EXIT_SUCCESS);
+}
 
 int main(int argc, char *argv[]){
 
@@ -25,12 +31,14 @@ int main(int argc, char *argv[]){
     major = strtoul(argv[2], NULL, 10);
     minor = strtoul(argv[3], NULL, 10);
 
-    // Create a char device file with the given major and 0 with minor number
+    // Creating a new device file
     ret = mknod(argv[1], S_IFCHR, makedev(major, minor));
     if (ret == -1) {
         fprintf(stderr, "mknod() failed: %s\n", strerror(errno));
         return(EXIT_FAILURE);
     }
+    signal(SIGTSTP, sig_handler);
+    signal(SIGINT, sig_handler);
 
     // Opening the input file
     fd = open(argv[1], O_RDWR);
@@ -85,7 +93,6 @@ int main(int argc, char *argv[]){
         //Releasing file
         }else if(strcmp(mess, "QUIT") == 0){
             close(fd);
-            free(mess_cleaned);
             fprintf(stdout, "File %s and %d cloesd. See ya.\n", argv[1], fd);
             return EXIT_SUCCESS;
         //Writing on file
@@ -99,17 +106,12 @@ int main(int argc, char *argv[]){
             memccpy(mess_cleaned, mess, '\0', len);
 
             // Write the input into the device file
-            fprintf(stdout, "Sending message to device: %s , %lu\n", mess_cleaned, len);
+            fprintf(stdout, "Sending message to device: %s, %lu\n", mess_cleaned, len);
             ret = write(fd, mess, len);
 
             fprintf(stdout, "write() returned: ret=%d\n", ret);
 
-            //sleep(1);
-
         }
     }
-
-    close(fd);
     return(EXIT_SUCCESS);
-
 }

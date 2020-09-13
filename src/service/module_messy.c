@@ -109,7 +109,7 @@ static int dev_release(struct inode *inode, struct file *file) {
 
     __del_session_defwrite(session);
     //deleting all pending writes
-    flush_workqueue(session->pending_write_wq);
+    //flush_workqueue(session->pending_write_wq);
     destroy_workqueue(session->pending_write_wq);
 
     //delete current session pointer
@@ -231,7 +231,7 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
             printk("%s: a DEFERRED WRITE has been invoked\n", MODNAME);
 
         //create pending_write struct (initializes a work_struct item)
-        pending_write = kmalloc(sizeof(pending_write_t), GFP_ATOMIC); /* non blocking memory allocation */
+        pending_write = kmalloc(sizeof(pending_write_t), GFP_KERNEL); /* GFP_ATOMIC -> non blocking memory allocation */
         if(pending_write == NULL) {
             DEBUG
                 printk(KERN_ERR "%s: kmalloc() failed in dev_write()\n", MODNAME);
@@ -250,9 +250,10 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
 
         //queueing a new deferred write
         queue_delayed_work(session->pending_write_wq, //work_queue
-                           &pending_write->the_deferred_write_work, //new task
+                           &pending_write->the_deferred_write_work, //new task codeuna sequenza L
                            write_timer); //time_delay in jiffies
         mutex_unlock(&session->operation_mutex);
+
     }else { //NO_WAIT_WRITE
 
         DEBUG
@@ -451,7 +452,7 @@ static void __del_all_messages(int minor){
 
     if(!list_empty(&instance_by_minor[minor].stored_messages)) {
         DEBUG
-            printk("%s: instance_by_minor[minor].stored_messages not empty: deleting...\n", MODNAME);
+            printk("%s: stored_messages not empty: deleting...\n", MODNAME);
         list_for_each_safe(ptr, q, &instance_by_minor[minor].stored_messages) {
             message = list_entry(ptr, message_t, next);
             list_del(&message->next);
@@ -481,9 +482,9 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
                 printk("%s: ioctl() has set SET_SEND_TIMEOUT:%lu\n", MODNAME, session->write_timer);
             mutex_unlock(&session->operation_mutex);
             break;
-        case SET_RECV_TIMEOUT: //27393 ?
+        case SET_RECV_TIMEOUT: //27393
             mutex_lock(&session->operation_mutex);
-            session->read_timer = ktime_set(0, param*1000); //param : microsecs*1000=ns
+            session->read_timer = ktime_set(0, param); /* param in milliseconds */
             DEBUG
                 printk("%s: ioctl() has set SET_RECV_TIMEOUT:%llu\n", MODNAME, session->read_timer);
             mutex_unlock(&session->operation_mutex);
@@ -514,7 +515,7 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
 static int dev_flush(struct file *file, fl_owner_t owner){
 
     int minor = get_minor(file);
-    single_session* session = file->private_data;
+    //single_session* session = file->private_data;
 
     DEBUG
         printk("%s: someone called a FLUSH on dev with minor number %d\n", MODNAME, minor);
@@ -522,7 +523,7 @@ static int dev_flush(struct file *file, fl_owner_t owner){
 
     //delete device state
     __del_all_messages(minor);
-    __del_session_defwrite(session);
+    __del_all_deferred_writes(minor);
     __del_all_deferred_read(minor);
     mutex_unlock(&instance_by_minor[minor].dev_mutex);
 
@@ -544,7 +545,6 @@ static struct file_operations fops = {
 static int __init add_dev(void) {
 
     int i;
-
 
     //initialize the drive internal state -> GLOBAL "FILE" variables
     for(i=0; i<MINORS; i++){
@@ -583,7 +583,7 @@ static void __del_all_sessions(device_instance* instance) {
     single_session* session;
     int i;
 
-    for (i = 0; i < MINORS; i++) {
+    for(i = 0; i < MINORS; i++) {
         list_for_each(ptr, &(instance[i].all_sessions)) {
             session = list_entry(ptr, single_session, next);
 

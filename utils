@@ -1,8 +1,4 @@
 //Elimina tutti i messaggi all'interno della stored_messages SE non vuota->
-/*PROBLEMA: se lo metto nella flush va in SEGAULT
-*concettualmente vanno cancellati? un file con dati può sopravvivere al suo modulo?
-*ed in ogni caso è compito del modulo di rimuovere tutti i dati prima di essere rimosso? o basta "rm /file"
-*/
 
 static void __del_all_messages(int minor){
     struct list_head *ptr, *q;
@@ -34,6 +30,6 @@ static void __del_all_messages(int minor){
         list_for_each_safe(head, pos, &(instance_by_minor[minor].stored_messages)){
             message_t *elt;
             elt = list_first_entry(pos, message_t, next);
-            printk("%s write(), messaggio aggiunto ORAAAA: %s\n",MODNAME, elt->text);
+            printk("%s write(), messaggio aggiunto: %s\n",MODNAME, elt->text);
         }
     }

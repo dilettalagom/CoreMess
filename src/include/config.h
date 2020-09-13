@@ -3,8 +3,8 @@
 
 
 //Messages default values
-#define MAX_MESSAGE_SIZE 128       //byte. This can be configured via the sys file system
-#define MAX_STORAGE_SIZE 1024000  //byte (1MB). This can be configured via the sys file system
+#define MAX_MESSAGE_SIZE 128      //This can be configured via the sys file system
+#define MAX_STORAGE_SIZE 1024000  //(1MB). This can be configured via the sys file system
 
 //ioctl commands
 #define IOC_BASE_NUM 'k'

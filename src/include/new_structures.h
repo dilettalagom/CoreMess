@@ -5,20 +5,20 @@
 #include <linux/hrtimer.h>
 #include <linux/workqueue.h>
 
-//Singolo messaggio
+//Unit message
 typedef struct message_t{
     char* text;
     size_t len;
     struct list_head next;
 }message_t;
 
-//Deferred readers
+//Deferred reader's subscription
 typedef struct read_subscription_t{
     bool flush_me;
     struct list_head next;
 }read_subscription_t;
 
-//Deferred writers
+//Deferred writer's data structure
 typedef struct pending_write_t{
     int minor;
     message_t* pending_message;
@@ -27,7 +27,7 @@ typedef struct pending_write_t{
 }pending_write_t;
 
 //Metadati privati per singola sessione -> più single_session per stesso (major, minor)
-//rappresenta un singolo user utente (writer o rider)
+//rappresenta un singolo user utente (writer o reader)
 typedef struct single_session{
     struct mutex operation_mutex;
     unsigned long write_timer;
@@ -49,4 +49,4 @@ typedef struct device_instance{
     wait_queue_head_t deferred_read; //wait_queue dinamically allocated
     struct list_head readers_subscriptions; //condition for flushing readers
 
-} device_instance;
+}device_instance;

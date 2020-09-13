@@ -8,32 +8,25 @@
 #include <sys/ioctl.h>
 #include <signal.h>
 
-void sighandler(int sig_num)
-{
-    // Reset handler to catch SIGTSTP next time
+int fd;
+
+void sig_handler(int sig_num){
+    fprintf(stdout, "ReaderProcess has been stopped. See ya.\n");
+    close(fd);
     exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char *argv[]){
 
-    int fd, ret;
-    unsigned int major, minor;
+    //int fd, ret;
+    int ret;
     unsigned long read_timer;
     char* mess;
 
-    if(argc != 5){
-        fprintf(stderr, "Usage: sudo %s <filename> <major> <minor> <read_timer_micros>\n", argv[0]);
+    if(argc != 3){
+        fprintf(stderr, "Usage: sudo %s <filename> <read_timer_micros>\n", argv[0]);
         return(EXIT_FAILURE);
     }
-    major = strtoul(argv[2], NULL, 10);
-    minor = strtoul(argv[3], NULL, 10);
-
-    //Create a char device file with the given major and 0 with minor number
-//    ret = mknod(argv[1], S_IFCHR, makedev(major, minor));
-//    if (ret == -1) {
-//        fprintf(stderr, "mknod() failed\n");
-//        return(EXIT_FAILURE);
-//    }
 
     // Opening the input file
     fd = open(argv[1], O_RDONLY);
@@ -54,8 +47,8 @@ int main(int argc, char *argv[]){
     }
 
     mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
-    signal(SIGTSTP, sighandler);
-    signal(SIGINT, sighandler);
+    signal(SIGTSTP, sig_handler);
+    signal(SIGINT, sig_handler);
     // Reading new messagges from file
     while (1) {
 
@@ -63,7 +56,7 @@ int main(int argc, char *argv[]){
         if (ret <= 0)
             fprintf(stdout, "There aren't new messages. Sorry. %s\n", strerror(errno));
         else
-            fprintf(stdout, "You have a new message: %s. ret:%d\n", mess, ret);
+            fprintf(stdout, "You have a new message: %s. ret=%d\n", mess, ret);
         sleep(2);
     }
     return EXIT_SUCCESS;
