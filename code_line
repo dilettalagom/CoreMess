@@ -1,3 +1,6 @@
+__init / __exit
+https://tldp.org/LDP/lkmpg/2.4/html/c435.htm
+
 HLIST-> bug in list_head
 https://lwn.net/Articles/336255/
 https://medium.com/@414apache/kernel-data-structures-linkedlist-b13e4f8de4bf

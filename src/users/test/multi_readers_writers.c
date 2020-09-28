@@ -104,5 +104,8 @@ int main(int argc, char *argv[]){
         pthread_join(readers[i], NULL);
     }
 
+    close(fd);
+    fprintf(stdout, "File %s and %d cloesd.\n", argv[1], fd);
+
     return EXIT_SUCCESS;
 }
