@@ -1,3 +1,4 @@
+//gcc -pthread multi_readers_writers.c -o run_test.o
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/sysmacros.h>
@@ -9,6 +10,8 @@
 #include <pthread.h>
 #include <signal.h>
 #include "./test_conf.h"
+#include <sys/ioctl.h>
+#include "../../include/config.h"
 
 int fd;
 pthread_t readers[NUM_READERS];
@@ -26,10 +29,18 @@ void* writer_routine(void* args){
     char mess[MAX_MESSAGE_SIZE];
     pthread_t t_id = pthread_self();
 
+    if(WRITER_TIMER != 0) {
+        ret = ioctl(fd, SET_SEND_TIMEOUT, WRITER_TIMER);
+        if (ret < 0) {
+            fprintf(stderr, "ioctl(SET_SEND_TIMEOUT) failed: %s\n", strerror(errno));
+            pthread_exit(NULL);
+        }
+    }
+
     for(i=0; i<NUM_MESSAGES; i++){
-        sprintf(mess, "%d", i);
-        ret = write(fd, mess, sizeof(i));
-        fprintf(stdout, "WRITER %lu: write() returned: ret=%d\n", t_id, ret);
+        sprintf(mess, "%d%c", i, '\0');
+        ret = write(fd, mess, strlen(mess));
+        fprintf(stdout, "WRITER %lu: write() with ret=%d\n", t_id, ret);
         sleep(1);
     }
 
@@ -38,18 +49,24 @@ void* writer_routine(void* args){
 
 void* reader_routine(void* args){
 
-    int i, ret;
+    int ret;
     pthread_t t_id = pthread_self();
     char* mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
 
-    for(i=0; i<NUM_MESSAGES; i++){
-        ret = read(fd, mess, MAX_MESSAGE_SIZE);
-        if (ret <= 0)
-            fprintf(stdout, "READER %lu: NO messages.%s\n", t_id, strerror(errno));
-        else
-            fprintf(stdout, "READER %lu: New message:%s. ret=%d\n", t_id, mess, ret);
-        sleep(2);
+    if(READER_TIMER != 0) {
+        ret = ioctl(fd, SET_RECV_TIMEOUT, READER_TIMER);
+        if (ret == -EINVAL) {
+            fprintf(stderr, "ioctl() failed: %s\n", strerror(errno));
+            pthread_exit(NULL);
+        }
     }
+
+    ret = read(fd, mess, MAX_MESSAGE_SIZE);
+    if (ret <= 0)
+        fprintf(stdout, "READER %lu: NO messages. %s\n", t_id, strerror(errno));
+    else
+        fprintf(stdout, "READER %lu: New message:%s. ret=%d\n", t_id, mess, ret);
+    sleep(2);
 
     pthread_exit(EXIT_SUCCESS);
 }
@@ -82,29 +99,37 @@ int main(int argc, char *argv[]){
 
 
     // Creating readers and writers threads
-    for (int i = 0; i < NUM_WRITERS; i++) {
-        if (pthread_create(&writers[i], NULL, &writer_routine, NULL)) {
-            fprintf(stderr, "pthread_create() failed\n");
-            return(EXIT_FAILURE);
+    if (NUM_WRITERS>0) {
+        for (int i = 0; i < NUM_WRITERS; i++) {
+            if (pthread_create(&writers[i], NULL, &writer_routine, NULL)) {
+                fprintf(stderr, "pthread_create() failed\n");
+                return (EXIT_FAILURE);
+            }
         }
     }
 
-    for (int i = 0; i < NUM_READERS; i++) {
-        if (pthread_create(&readers[i], NULL, &reader_routine, NULL)) {
-            fprintf(stderr, "pthread_create() failed\n");
-            return(EXIT_FAILURE);
+    if (NUM_READERS>0) {
+        for (int i = 0; i < NUM_READERS; i++) {
+            if (pthread_create(&readers[i], NULL, &reader_routine, NULL)) {
+                fprintf(stderr, "pthread_create() failed\n");
+                return (EXIT_FAILURE);
+            }
         }
     }
 
-    for (int i=0; i<NUM_WRITERS; i++){
-        pthread_join(writers[i], NULL);
+    if (NUM_WRITERS>0) {
+        for (int i = 0; i < NUM_WRITERS; i++) {
+            pthread_join(writers[i], NULL);
+        }
     }
 
-    for (int i=0; i<NUM_READERS; i++){
-        pthread_join(readers[i], NULL);
+    if (NUM_READERS>0) {
+        for (int i = 0; i < NUM_READERS; i++) {
+            pthread_join(readers[i], NULL);
+        }
     }
 
-    close(fd);
+    //close(fd);
     fprintf(stdout, "File %s and %d cloesd.\n", argv[1], fd);
 
     return EXIT_SUCCESS;

@@ -57,8 +57,8 @@ int main(int argc, char *argv[]){
             exit(EXIT_FAILURE);
         }
         len = strlen(mess);
-        mess[len]='\0';
-        len +=1;
+//        mess[len]='\0';
+//        len +=1;
 
         //Revoke all messagges
         if(strcmp(mess, "REVOKE") == 0){
