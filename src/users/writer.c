@@ -21,7 +21,6 @@ int main(int argc, char *argv[]){
     unsigned int major, minor;
     unsigned long write_timer;
     char mess[MAX_MESSAGE_SIZE];
-    char* mess_cleaned;
     unsigned long len;
 
     if(argc != 4){
@@ -57,8 +56,9 @@ int main(int argc, char *argv[]){
             exit(EXIT_FAILURE);
         }
         len = strlen(mess);
-//        mess[len]='\0';
-//        len +=1;
+        //clean-up buffer unused characters
+        mess[len]='\0';
+        len +=1;
 
         //Revoke all messagges
         if(strcmp(mess, "REVOKE") == 0){
@@ -97,16 +97,8 @@ int main(int argc, char *argv[]){
             return EXIT_SUCCESS;
         //Writing on file
         }else {
-            //clean-up buffer unused characters
-            mess_cleaned = calloc(len, sizeof(char));
-            if(mess_cleaned == NULL){
-                fprintf(stderr, "calloc failed: %s\n", strerror(errno));
-                return EXIT_FAILURE;
-            }
-            memccpy(mess_cleaned, mess, '\0', len);
-
             // Write the input into the device file
-            fprintf(stdout, "Sending message to device: %s, %lu\n", mess_cleaned, len);
+            fprintf(stdout, "Sending message to device: %s, %lu\n", mess, len);
             ret = write(fd, mess, len);
 
             fprintf(stdout, "write() returned: ret=%d\n", ret);
