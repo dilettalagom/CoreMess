@@ -36,15 +36,8 @@ int main(int argc, char *argv[]){
     }
     fprintf(stdout, "File device opened with fd: %d\n", fd);
 
-    //Setting of read_timer
+    //Getting read_timer value
     read_timer = strtoul(argv[4], NULL, 10);
-    if(read_timer != 0) {
-        ret = ioctl(fd, SET_RECV_TIMEOUT, read_timer);
-        if (ret == -EINVAL) {
-            fprintf(stderr, "ioctl() failed: %s\n", strerror(errno));
-            return (EXIT_FAILURE);
-        }
-    }
 
     mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
     signal(SIGTSTP, sig_handler);
@@ -52,12 +45,22 @@ int main(int argc, char *argv[]){
     // Reading new messagges from file
     while (1) {
 
+        //Setting of read_timer
+        if(read_timer != 0) {
+            ret = ioctl(fd, SET_RECV_TIMEOUT, read_timer);
+            if (ret == -EINVAL) {
+                fprintf(stderr, "ioctl() failed: %s\n", strerror(errno));
+                return (EXIT_FAILURE);
+            }
+        }
+
         ret = read(fd, mess, MAX_MESSAGE_SIZE);
         if (ret <= 0)
             fprintf(stdout, "There aren't new messages. Sorry. %s\n", strerror(errno));
         else
             fprintf(stdout, "You have a new message: %s. ret=%d\n", mess, ret);
-        sleep(2);
+        fflush(stdout);
+        sleep(3);
     }
     return EXIT_SUCCESS;
 }
