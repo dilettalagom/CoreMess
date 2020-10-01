@@ -331,7 +331,6 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
             return -ENOMEM;
         }
         r_subscription->flush_me = false;
-        //list_add(&r_subscription->next, &instance_by_minor[minor].readers_subscriptions);
         list_add(&r_subscription->next, &session->readers_subscriptions);
 
         back_from_sleep = wait_event_interruptible_hrtimeout(instance_by_minor[minor].deferred_read, //wait_queue
@@ -347,7 +346,13 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
                     return -EINTR; /* Interrupted system call */
                 }else {
                     //new message available to read
-                    return __send_first_message(&instance_by_minor[minor], buff, len);
+                    ret = __send_first_message(&instance_by_minor[minor], buff, len);
+                    //removing reader_subscription from the device
+                    if(ret >= 0){
+                        list_del(&r_subscription->next);
+                        kfree(r_subscription);
+                    }
+                    return ret;
                 }
             case -ETIME:
                 //timeout expired: nothing to read
@@ -355,9 +360,9 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
                     printk("%s: timeout expired -> no messages\n", MODNAME);
                 return -ETIME;
             case -ERESTARTSYS:
-                //interrotta da un segnale
+                //interrupted
                 DEBUG
-                    printk("%s: ERESTARTSYS -> error (?)\n", MODNAME);
+                    printk("%s: ERESTARTSYS -> interrupted by a signal\n", MODNAME);
                 return -ERESTART;
             default:
                 printk(KERN_ERR "%s: read() has returned with unexpected ret: %d\n", MODNAME, back_from_sleep);
@@ -392,7 +397,7 @@ static void __del_session_defread(single_session* session, int minor) {
         wake_up(&instance_by_minor[minor].deferred_read);
     }
     DEBUG
-        printk("%s: pending_defwrite_structs is empty\n", MODNAME);
+        printk("%s: readers_subscriptions is empty\n", MODNAME);
 }
 
 
@@ -493,7 +498,7 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
             break;
         case SET_RECV_TIMEOUT: //27393
             mutex_lock(&session->operation_mutex);
-            session->read_timer = ktime_set(0, param); /* param in milliseconds */
+            session->read_timer = ktime_set(0, param*1000000); /* nsecs*1000000 -> param in milliseconds */
             DEBUG
                 printk("%s: ioctl() has set SET_RECV_TIMEOUT:%llu\n", MODNAME, session->read_timer);
             mutex_unlock(&session->operation_mutex);
@@ -543,12 +548,6 @@ static int dev_flush(struct file *file, fl_owner_t owner){
 
     mutex_unlock(&session->operation_mutex);
 
-    //TODO: sessione
-    /*  mutex_lock(&instance_by_minor[minor].dev_mutex);
-     * __del_all_deferred_writes(minor);
-     * __del_all_deferred_read(minor);
-     * mutex_unlock(&instance_by_minor[minor].dev_mutex);*/
-
     return 0;
 }
 
@@ -584,7 +583,6 @@ static int __init add_dev(void) {
         //deferred read structs
         instance_by_minor[i].num_pending_read = 0;
         init_waitqueue_head(&instance_by_minor[i].deferred_read);
-        //INIT_LIST_HEAD(&instance_by_minor[i].readers_subscriptions);
     }
 
     Major = __register_chrdev(0, 0, 256, DEVICE_NAME, &fops);
@@ -598,7 +596,7 @@ static int __init add_dev(void) {
 
 }
 
-
+/*
 static void __del_all_sessions(device_instance* instance) {
     struct list_head *ptr;
     single_session* session;
@@ -627,7 +625,7 @@ static void __del_all_sessions(device_instance* instance) {
     }
     DEBUG
         printk("%s: all sessions in instance_by_minor[minor].all_sessions have been deleted\n", MODNAME);
-}
+}*/
 
 
 static void __exit remove_dev(void){
@@ -637,7 +635,6 @@ static void __exit remove_dev(void){
         __del_all_messages(i);
         list_del(&instance_by_minor[i].stored_messages);
         list_del(&instance_by_minor[i].all_sessions);
-        //list_del(&instance_by_minor[i].readers_subscriptions);
     }
 
     unregister_chrdev(Major, DEVICE_NAME);

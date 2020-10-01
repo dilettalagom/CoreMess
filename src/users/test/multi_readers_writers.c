@@ -129,7 +129,7 @@ int main(int argc, char *argv[]){
         }
     }
 
-    //close(fd);
+    close(fd);
     fprintf(stdout, "File %s and %d cloesd.\n", argv[1], fd);
 
     return EXIT_SUCCESS;
