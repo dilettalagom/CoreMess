@@ -11,6 +11,6 @@ set(SOURCE_FILES
         src/include/new_structures.h
         src/service/module_messy.c src/service/module_messy.h
         src/users/writer.c src/users/reader.c
-        src/users/test/multi_readers_writers.c src/users/test/test_conf.h)
+        src/users/test/multi_readers_writers_test.c src/users/test/test_conf.h src/users/test/revoke_delayed_reader_test.c)
 
 add_executable(CoreMess ${SOURCE_FILES})

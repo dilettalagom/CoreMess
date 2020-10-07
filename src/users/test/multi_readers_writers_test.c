@@ -1,4 +1,4 @@
-//gcc -pthread multi_readers_writers.c -o run_test.o
+//gcc -pthread multi_readers_writers_test.c -o run_test_1.o
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/sysmacros.h>
@@ -8,20 +8,13 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <signal.h>
-#include "./test_conf.h"
 #include <sys/ioctl.h>
+#include "./test_conf.h"
 #include "../../include/config.h"
 
 int fd;
 pthread_t readers[NUM_READERS];
 pthread_t writers[NUM_WRITERS];
-
-void sig_handler(int sig_num){
-    fprintf(stdout, "Test stopped.\n");
-    close(fd);
-    exit(EXIT_SUCCESS);
-}
 
 void* writer_routine(void* args){
 

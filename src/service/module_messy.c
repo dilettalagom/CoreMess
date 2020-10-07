@@ -35,7 +35,7 @@ static int dev_open(struct inode *inode, struct file *file) {
     //init single_session metadata
     session = kmalloc(sizeof(single_session), GFP_KERNEL);
     if(session == NULL){
-        printk(KERN_ERR "%s: kmalloc() failed in dev_open\n", MODNAME);
+        printk(KERN_ERR "%s: kmalloc() failed in dev_open()\n", MODNAME);
         return -ENOMEM; /* Out of memory */
     }
 
@@ -76,8 +76,10 @@ static int dev_release(struct inode *inode, struct file *file) {
 
     mutex_lock(&session->operation_mutex);
 
-    //deleting session's structs
+    //deleting session's empty structs
+    list_del(&session->pending_defwrite_structs);
     destroy_workqueue(session->pending_write_wq);
+    list_del(&session->readers_subscriptions);
 
     //delete current session pointer
     list_del(&session->next);
@@ -173,7 +175,7 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
         kfree(new_message->text);
         kfree(new_message);
         DEBUG
-            printk(KERN_ERR "%s: copy_from_user in write failed\n",MODNAME);
+            printk(KERN_ERR "%s: copy_from_user() in dev_write() failed\n",MODNAME);
         return -EMSGSIZE; /* Message too long */
     }
     new_message->len = len;
@@ -270,7 +272,7 @@ static int __send_first_message(device_instance* instance, char* buff, ssize_t l
         ret = copy_to_user(buff, head_message->text, head_message_len);
         if(ret){
             DEBUG
-                printk(KERN_ERR "%s: copy_to_user in __send_first_message failed\n",MODNAME);
+                printk(KERN_ERR "%s: copy_to_user() in __send_first_message failed\n",MODNAME);
             return -EMSGSIZE; /* Message too long */
         }
 
@@ -310,7 +312,7 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
 
     session = (single_session*)file->private_data;
 
-    //get the write_timer value before someone else changes it
+    //get the read_timer value before someone else changes it
     mutex_lock(&session->operation_mutex);
     read_timer = session->read_timer;
     mutex_unlock(&session->operation_mutex);
@@ -319,32 +321,33 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
         DEBUG
             printk("%s: a DEFERRED READ has been invoked\n", MODNAME);
 
-        //create a reader_subscription to a REVOKE event
+        //create a reader_subscription for the REVOKE event
         r_subscription = kmalloc(sizeof(read_subscription_t),GFP_KERNEL);
         if(r_subscription == NULL){
             DEBUG
-                printk(KERN_ERR "%s: kmalloc() failed in DEFERRED_READ()\n", MODNAME);
+                printk(KERN_ERR "%s: kmalloc() failed in DEFERRED_READ\n", MODNAME);
             return -ENOMEM;
         }
         r_subscription->flush_me = false;
         list_add(&r_subscription->next, &session->readers_subscriptions);
 
+        //add the deferred_reader to the wait_queue
         back_from_sleep = wait_event_interruptible_hrtimeout(instance_by_minor[minor].deferred_read, //wait_queue
                                                              instance_by_minor[minor].num_pending_read > 0  || r_subscription->flush_me == true, //condition to sleep on
                                                              read_timer); //hr_timer
         switch (back_from_sleep){
             case 0:
+                //flush all readers
+                if(r_subscription->flush_me == true){
+                    ret = -EINTR; /* Interrupted system call */
+                }else {
+                    //new message available to read
+                    ret = __send_first_message(&instance_by_minor[minor], buff, len);
+                }
                 //removing reader_subscription from the device
                 list_del(&r_subscription->next);
                 kfree(r_subscription);
-
-                //flush all readers
-                if(r_subscription->flush_me == true){
-                    return -EINTR; /* Interrupted system call */
-                }else {
-                    //new message available to read
-                    return __send_first_message(&instance_by_minor[minor], buff, len);
-                }
+                return ret;
             case -ETIME:
                 //timeout expired: nothing to read
                 DEBUG
@@ -423,7 +426,6 @@ static void __del_session_defwrite(single_session* session) {
 static void __del_all_deferred_read(int minor){
     struct list_head *ptr;
     single_session* session;
-    //read_subscription_t* r_sub;
 
     DEBUG
         printk("%s: i'm in __del_all_deferred_read\n", MODNAME);
@@ -554,17 +556,16 @@ static int __init add_dev(void) {
 
     int i;
 
-    //initialize the drive internal state -> GLOBAL "FILE" variables
+    //initialize the drive internal state -> global variables per minor
     for(i=0; i<MINORS; i++){
 
-        //init delle strutture dei dati puri
+        //init messages's data struct
         instance_by_minor[i].actual_total_size = 0;
         INIT_LIST_HEAD(&instance_by_minor[i].stored_messages);
 
-        //lista delle sessioni multiple per singolo minor
+        //init list of active sessions per minor
         INIT_LIST_HEAD(&instance_by_minor[i].all_sessions);
 
-        //per rendere l'accesso alle strutture globali univoco
         mutex_init(&instance_by_minor[i].dev_mutex);
 
         //deferred read structs

@@ -26,8 +26,7 @@ typedef struct pending_write_t{
     struct list_head next;
 }pending_write_t;
 
-//Metadati privati per singola sessione -> più single_session per stesso (major, minor)
-//rappresenta un singolo user utente (writer o reader)
+//Single session metadata -> multiple single_session per (major, minor)
 typedef struct single_session{
     struct mutex operation_mutex;
     unsigned long write_timer;
@@ -38,16 +37,13 @@ typedef struct single_session{
     struct list_head next;
 }single_session;
 
-//Metadati globali per fd -> uno per ogni MINOR
-//rappresenta una istanza del driver
+//Single driver instance metadata -> one per MINOR
 typedef struct device_instance{
 
     unsigned long actual_total_size;
     struct list_head stored_messages; //messages already stored
     struct list_head all_sessions;
-    struct mutex dev_mutex;     //makes access to global structures unique
+    struct mutex dev_mutex; //makes access to global structures unique
     long num_pending_read; //condition for wakeup readers
     wait_queue_head_t deferred_read; //wait_queue dinamically allocated
-    //    struct list_head readers_subscriptions; //condition for flushing readers
-
 }device_instance;

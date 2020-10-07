@@ -42,6 +42,7 @@ int main(int argc, char *argv[]){
     mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
     signal(SIGTSTP, sig_handler);
     signal(SIGINT, sig_handler);
+
     // Reading new messagges from file
     while (1) {
 

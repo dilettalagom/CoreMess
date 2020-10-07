@@ -1,11 +1,11 @@
 #ifndef TEST_CONF_H
 #define TEST_CONF_H
 
-#define FILENAME my_prova
+#define FILENAME "my_prova"
 #define TEST_MINOR 0
 
-#define NUM_READERS 2
-#define NUM_WRITERS 0
+#define NUM_READERS 3
+#define NUM_WRITERS 2
 
 #define READER_TIMER 15000
 #define WRITER_TIMER 15000

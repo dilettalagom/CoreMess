@@ -102,7 +102,6 @@ int main(int argc, char *argv[]){
             ret = write(fd, mess, len);
 
             fprintf(stdout, "write() returned: ret=%d\n", ret);
-
         }
     }
     return(EXIT_SUCCESS);
