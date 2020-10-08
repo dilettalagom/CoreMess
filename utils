@@ -33,3 +33,68 @@ static void __del_all_messages(int minor){
             printk("%s write(), messaggio aggiunto: %s\n",MODNAME, elt->text);
         }
     }
+
+//cancella tutte le def_write
+static void __del_all_deferred_writes(int minor){
+
+    struct list_head *ptr;
+    single_session* session;
+
+    if(!list_empty(&instance_by_minor[minor].all_sessions)) {
+        list_for_each(ptr, &(instance_by_minor[minor].all_sessions)) {
+            session = list_entry(ptr, single_session, next);
+            mutex_lock(&session->operation_mutex);
+            __del_session_defwrite(session);
+            flush_workqueue(session->pending_write_wq);
+            mutex_unlock(&session->operation_mutex);
+        }
+    }
+}
+
+//cancella i reader per sessione
+static void __del_session_defread(single_session* session, int minor) {
+    struct list_head *ptr, *q;
+    read_subscription_t* r_sub;
+
+    if(!list_empty(&session->readers_subscriptions)) {
+        DEBUG
+            printk("%s: readers_subscriptions not empty: deleting...\n", MODNAME);
+
+        list_for_each_safe(ptr, q, &session->readers_subscriptions) {
+            r_sub = list_entry(ptr, read_subscription_t, next);
+            r_sub->flush_me = true;
+        }
+        wake_up(&instance_by_minor[minor].deferred_read);
+    }
+}
+
+//del all sessions
+static void __del_all_sessions(device_instance* instance) {
+    struct list_head *ptr;
+    single_session* session;
+    int i;
+
+    for(i = 0; i < MINORS; i++) {
+        list_for_each(ptr, &(instance[i].all_sessions)) {
+            session = list_entry(ptr, single_session, next);
+
+            mutex_lock(&session->operation_mutex);
+            //delete deferred write
+            __del_session_defwrite(session);
+            flush_workqueue(session->pending_write_wq);
+            destroy_workqueue(session->pending_write_wq);
+
+            //delete deferred read
+            __del_session_defread(session, i);
+
+            list_del(&session->pending_defwrite_structs);
+            //list_del(&session->readers_subscriptions);
+            list_del(&session->next);
+            mutex_unlock(&session->operation_mutex);
+
+            kfree(session);
+        }
+    }
+    DEBUG
+        printk("%s: all sessions in instance_by_minor[minor].all_sessions have been deleted\n", MODNAME);
+}

@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <signal.h>
+#include <stdbool.h>
 
 int fd;
 
@@ -18,8 +19,8 @@ void sig_handler(int sig_num){
 
 int main(int argc, char *argv[]){
 
-    //int fd, ret;
     int ret;
+    bool exit = true;
     unsigned long read_timer;
     char* mess;
 
@@ -37,14 +38,15 @@ int main(int argc, char *argv[]){
     fprintf(stdout, "File device opened with fd: %d\n", fd);
 
     //Getting read_timer value
-    read_timer = strtoul(argv[4], NULL, 10);
+    read_timer = strtoul(argv[2], NULL, 10);
+    fprintf(stdout, "read_timer: %lu\n", read_timer);
 
     mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
     signal(SIGTSTP, sig_handler);
     signal(SIGINT, sig_handler);
 
     // Reading new messagges from file
-    while (1) {
+    while (exit) {
 
         //Setting of read_timer
         if(read_timer != 0) {
@@ -56,12 +58,16 @@ int main(int argc, char *argv[]){
         }
 
         ret = read(fd, mess, MAX_MESSAGE_SIZE);
-        if (ret <= 0)
+        if (ret <= 0) {
             fprintf(stdout, "There aren't new messages. Sorry. %s\n", strerror(errno));
+            if (errno == EINTR) exit = false;
+        }
         else
             fprintf(stdout, "You have a new message: %s. ret=%d\n", mess, ret);
         fflush(stdout);
-        sleep(3);
+        sleep(2);
     }
-    return EXIT_SUCCESS;
+    printf("Exiting...\n");
+    close(fd);
+    return EXIT_FAILURE;
 }
