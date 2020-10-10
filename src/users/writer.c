@@ -68,6 +68,11 @@ int main(int argc, char *argv[]){
                 break;
             }
             write_timer = strtoul(mess, NULL, 10);
+            if (write_timer<0) {
+                fprintf(stdout, "Please, choose a write_timer_micros>0.\n");
+                close(fd);
+                return EXIT_FAILURE;
+            }
             ret = ioctl(fd, SET_SEND_TIMEOUT, write_timer);
             if (ret < 0) {
                 fprintf(stderr, "ioctl(SET_SEND_TIMEOUT) failed: %s\n", strerror(errno));

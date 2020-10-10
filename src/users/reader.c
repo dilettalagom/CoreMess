@@ -25,7 +25,7 @@ int main(int argc, char *argv[]){
     char* mess;
 
     if(argc != 3){
-        fprintf(stderr, "Usage: sudo %s <filename> <read_timer_micros>\n", argv[0]);
+        fprintf(stderr, "Usage: sudo %s <filename> <read_timer_millis>\n", argv[0]);
         return(EXIT_FAILURE);
     }
 
@@ -39,6 +39,10 @@ int main(int argc, char *argv[]){
 
     //Getting read_timer value
     read_timer = strtoul(argv[2], NULL, 10);
+    if (read_timer<0){
+        fprintf(stdout, "Please, choose a read_timer_millis>0.\n");
+        return EXIT_FAILURE;
+    }
     fprintf(stdout, "read_timer: %lu\n", read_timer);
 
     mess = malloc(sizeof(char)*MAX_MESSAGE_SIZE);
