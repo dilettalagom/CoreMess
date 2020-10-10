@@ -36,13 +36,13 @@ typedef struct single_session{
     struct list_head next;
 }single_session;
 
-//Single driver instance metadata -> one per MINOR
+//Single driver instance metadata -> one device_instance per MINOR
 typedef struct device_instance{
     unsigned long actual_total_size;
     struct list_head stored_messages; //messages already stored
     struct list_head all_sessions;
     struct mutex dev_mutex; //makes access to global structures unique
     long num_pending_read; //condition for wakeup readers
-    wait_queue_head_t deferred_read; //wait_queue dinamically allocated
-    struct list_head readers_subscriptions; //condition for flushing readers
+    wait_queue_head_t deferred_read; //wait_queue dynamically allocated
+    struct list_head readers_subscriptions; //list of all pending readers
 }device_instance;

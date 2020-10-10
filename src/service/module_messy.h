@@ -10,7 +10,7 @@
 #include <linux/tty.h>		/* For the tty declarations */
 #include <linux/version.h>	/* For LINUX_VERSION_CODE */
 #include <linux/uaccess.h>  /* copy_to/from_user */
-#include <linux/workqueue.h> /* work_queus */
+#include <linux/workqueue.h> /* work_queues */
 #include <linux/jiffies.h>
 #include  <asm/param.h> /* for HZ */
 

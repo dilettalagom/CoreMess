@@ -98,7 +98,7 @@ int main(int argc, char *argv[]){
         //Releasing file
         }else if(strcmp(mess, "QUIT") == 0){
             close(fd);
-            fprintf(stdout, "File %s and %d cloesd. See ya.\n", argv[1], fd);
+            fprintf(stdout, "File %s and %d closed. See ya.\n", argv[1], fd);
             return EXIT_SUCCESS;
         //Writing on file
         }else {

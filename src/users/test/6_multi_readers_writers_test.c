@@ -87,7 +87,7 @@ int main(int argc, char *argv[]){
     }
     major = strtoul(argv[1], NULL, 10);
 
-    // Create a char device file with the given major and 0 with minor number
+    //creating a char device file with the given major and 0 with minor number
     ret = mknod(FILENAME, S_IFCHR, makedev(major, TEST_MINOR));
     if (ret == -1) {
         fprintf(stderr, "mknod() failed: %s\n", strerror(errno));

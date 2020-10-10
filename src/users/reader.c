@@ -29,7 +29,7 @@ int main(int argc, char *argv[]){
         return(EXIT_FAILURE);
     }
 
-    // Opening the input file
+    //Opening the input file
     fd = open(argv[1], O_RDONLY);
     if(fd < 0){
         fprintf(stderr, "Could not open the file: %s\n", strerror(errno));
@@ -49,7 +49,7 @@ int main(int argc, char *argv[]){
     signal(SIGTSTP, sig_handler);
     signal(SIGINT, sig_handler);
 
-    // Reading new messagges from file
+    //Reading new messages from file
     while (exit) {
 
         //Setting of read_timer

@@ -7,8 +7,8 @@
 #define NUM_READERS 3
 #define NUM_WRITERS 2
 
-#define READER_TIMER 10000
-#define WRITER_TIMER 4000
+#define READER_TIMER 10000 //milliseconds
+#define WRITER_TIMER 4000  //milliseconds
 
 #define MAX_MESSAGE_SIZE 128
 #define NUM_MESSAGES 1

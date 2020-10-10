@@ -112,7 +112,7 @@ static int __add_new_message(device_instance* instance, message_t* new_message){
     instance->actual_total_size += new_message->len;
     __atomic_fetch_add(&instance->num_pending_read, 1, __ATOMIC_SEQ_CST);
 
-    //notify the readers_wake_up that a new message is ready
+    //notify to the readers that a new message is ready
     wake_up(&instance->deferred_read);
     mutex_unlock(&instance->dev_mutex);
 
@@ -223,7 +223,7 @@ static ssize_t dev_write(struct file *file, const char *buff, size_t len, loff_t
             printk("%s write(), new size: %lu\n",MODNAME, instance_by_minor[minor].actual_total_size);
     }
 
-    // Most write functions return the number of bytes put into the buffer
+    //Most write functions return the number of bytes put into the buffer
     return ret;
 
 }
@@ -303,7 +303,7 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
         DEBUG
             printk("%s: a DEFERRED READ has been invoked\n", MODNAME);
 
-        //create a reader_subscription for the REVOKE event
+        //create a reader_subscription for the flush event
         r_subscription = kmalloc(sizeof(read_subscription_t),GFP_KERNEL);
         if(r_subscription == NULL){
             DEBUG
@@ -319,7 +319,7 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
         //add the deferred_reader to the wait_queue
         back_from_sleep = wait_event_interruptible_hrtimeout(instance_by_minor[minor].deferred_read, //wait_queue
                                                              instance_by_minor[minor].num_pending_read > 0  || r_subscription->flush_me == true, //condition to sleep on
-                                                             read_timer); //hr_timer
+                                                             read_timer); //timer
         switch (back_from_sleep){
             case 0:
                 //flush all readers
@@ -355,7 +355,7 @@ static ssize_t dev_read(struct file *file, char *buff, size_t len, loff_t *off) 
         DEBUG printk("%s read(), new size: %lu\n", MODNAME, instance_by_minor[minor].actual_total_size);
     }
 
-    // Most read functions return the number of bytes put into the buffer
+    //Most read functions return the number of bytes put into the buffer
     return ret;
 }
 
@@ -548,7 +548,7 @@ static int __init add_dev(void) {
 
     int i;
 
-    //initialize the drive internal state -> global variables per minor
+    //initialize the driver internal state -> global variables per minor
     for(i=0; i<MINORS; i++){
 
         //init messages's data struct
@@ -581,6 +581,7 @@ static int __init add_dev(void) {
 static void __exit remove_dev(void){
     int i;
 
+    //removing all driver internal state's variables
     for(i = 0; i < MINORS; i++) {
         __del_all_messages(i);
         list_del(&instance_by_minor[i].stored_messages);
