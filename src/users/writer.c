@@ -6,36 +6,28 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/sysmacros.h>
 #include <signal.h>
+
+int fd;
 
 void sig_handler(int sig_num){
     fprintf(stdout, "WriterProcess has been stopped. See ya.\n");
+    close(fd);
     exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char *argv[]){
 
-    int fd, ret;
-    unsigned int major, minor;
+    int ret;
     unsigned long write_timer;
     char mess[MAX_MESSAGE_SIZE];
     unsigned long len;
 
-    if(argc != 4){
-        fprintf(stderr, "Usage: sudo %s <filename> <major> <minor>\n", argv[0]);
+    if(argc != 2){
+        fprintf(stderr, "Usage: sudo %s <filename>\n", argv[0]);
         return(EXIT_FAILURE);
     }
-    major = strtoul(argv[2], NULL, 10);
-    minor = strtoul(argv[3], NULL, 10);
 
-    // Creating a new device file
-    ret = mknod(argv[1], S_IFCHR, makedev(major, minor));
-    if (ret == -1) {
-        fprintf(stderr, "mknod() failed: %s\n", strerror(errno));
-        return(EXIT_FAILURE);
-    }
     signal(SIGTSTP, sig_handler);
     signal(SIGINT, sig_handler);
 
@@ -50,7 +42,7 @@ int main(int argc, char *argv[]){
     while (!feof(stdin)) {
 
         //Getting input_command or message_to_send to device driver
-        fprintf(stdout, "\nWrite a new message or a dev_command (SEND_TIMEOUT/REVOKE/DELETE/QUIT)\n");
+        fprintf(stdout, "\nWrite a new message or a dev_command (SEND_TIMEOUT/REVOKE/DELETE/FLUSH/QUIT)\n");
         if(fscanf(stdin, "%s", mess)<0){
             fprintf(stderr,"Error in scanf: %s\n",strerror(errno));
             exit(EXIT_FAILURE);
@@ -90,6 +82,14 @@ int main(int argc, char *argv[]){
                 close(fd);
                 return EXIT_FAILURE;
             }
+        //Flushing all deferred work
+        }else if (strcmp(mess, "FLUSH") == 0 ){
+            ret = ioctl(fd, FLUSH_DEF_WORK);
+            if(ret<0){
+                fprintf(stderr, "ioctl(FLUSH_DEF_WORK) failed: %s\n", strerror(errno));
+                close(fd);
+                return EXIT_FAILURE;
+            }
         //Releasing file
         }else if(strcmp(mess, "QUIT") == 0){
             close(fd);
@@ -100,7 +100,11 @@ int main(int argc, char *argv[]){
             // Write the input into the device file
             fprintf(stdout, "Sending message to device: %s, %lu\n", mess, len);
             ret = write(fd, mess, len);
-
+            if(ret<0){
+                fprintf(stderr, "write() failed: %s\n", strerror(errno));
+                close(fd);
+                return EXIT_FAILURE;
+            }
             fprintf(stdout, "write() returned: ret=%d\n", ret);
         }
     }
