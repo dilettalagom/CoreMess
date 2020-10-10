@@ -36,4 +36,3 @@ static ssize_t dev_write(struct file *, const char *, size_t, loff_t *);
 static long dev_ioctl(struct file *, unsigned int, unsigned long);
 static int dev_flush(struct file *, fl_owner_t );
 
-

@@ -19,7 +19,7 @@ module_param(max_storage_size, ulong, PERM_MODE);
 //Major number assigned to broadcast device driver
 static int Major;
 device_instance instance_by_minor[MINORS];
-extern void *sys_call_table[];
+
 
 //the actual driver
 static int dev_open(struct inode *inode, struct file *file) {
@@ -500,6 +500,13 @@ static long dev_ioctl(struct file *file, unsigned int command, unsigned long par
                 printk("%s: ioctl() has called DELETE_ALL_MESSAGES\n", MODNAME);
             mutex_lock(&instance_by_minor[minor].dev_mutex);
             __del_all_messages(minor);
+            mutex_unlock(&instance_by_minor[minor].dev_mutex);
+            break;
+        case FLUSH_DEF_WORK: //27396
+            DEBUG
+                printk("%s: ioctl() has called FLUSH_DEF_WORK\n", MODNAME);
+            mutex_lock(&instance_by_minor[minor].dev_mutex);
+            __del_all_deferred_works(minor);
             mutex_unlock(&instance_by_minor[minor].dev_mutex);
             break;
         default:
