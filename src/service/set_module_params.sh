@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DEV_NAME='manage_module' #'/core_mess_dev'
+DEV_NAME='module_messy'
 m=0
 s=0
 

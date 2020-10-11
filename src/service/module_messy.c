@@ -61,7 +61,7 @@ static int dev_open(struct inode *inode, struct file *file) {
     mutex_unlock(&instance_by_minor[minor].dev_mutex);
 
     //device opened by a default nop
-    printk("%s: Device file successfully opened for object with minor %d\n", MODNAME, minor);
+    printk(KERN_INFO "%s: Device file successfully opened for object with minor %d\n", MODNAME, minor);
     return 0;
 
 }
@@ -87,7 +87,7 @@ static int dev_release(struct inode *inode, struct file *file) {
     kfree(session);
 
     //device closed by default nop
-    printk("%s: Device file closed\n",MODNAME);
+    printk(KERN_INFO "%s: Device file closed\n",MODNAME);
     return 0;
 
 }
@@ -395,6 +395,7 @@ static void __del_session_defwrite(single_session* session) {
                 DEBUG
                     printk("%s: work was pending\n", MODNAME);
                 kfree(pending_write->pending_message->text);
+                kfree(pending_write->pending_message);
 
                 //del pending struct
                 list_del(&pending_write->next);

@@ -65,8 +65,7 @@ Per testare i possibili flussi di esecuzione è possibile eseguire i test di ese
 
 6.```6_multi_readers_writers_test.c```, lancia un numero configurabile di sessioni parallele di deferred readers e deferred writers. Tutti i parametri configurabili sono definiti nel file ```test_conf.h```
 
-Per eseguirli, basta utilizzare i file già compilati presenti nella cartella digitando in un terminale come superuser:
-
+Per eseguirli, è necessario compilare i file sorgente presenti nella cartella (vedere il commento all'interno dei file .c) e avviare i test digitando in un terminale come superuser:
 ```$ sudo ./run_test_{test_number}.o <major_number>```
 
 dove ```{test_number}``` corrisponde all'indice del test presente nel nome del file sorgente e ```<major_number>``` il valore del major associato al modulo in fase di montaggio.
