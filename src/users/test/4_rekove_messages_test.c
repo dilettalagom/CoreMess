@@ -14,8 +14,9 @@
 #include "../../include/config.h"
 
 #define num_writers 5
-#define revoke_timer num_writers-2
 #define write_timer 5
+#define revoke_timer write_timer-2
+
 pthread_t writers[num_writers];
 
 void* writer_routine(void* args){

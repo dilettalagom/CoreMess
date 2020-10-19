@@ -98,6 +98,8 @@ static int __add_new_message(device_instance* instance, message_t* new_message){
     DEBUG
         printk("%s: __add_new_message %s", MODNAME, new_message->text);
 
+    mutex_lock(&instance->dev_mutex);
+
     //check if message can be stored
     if (instance->actual_total_size + new_message->len > max_storage_size) {
         kfree(new_message->text);
@@ -107,7 +109,6 @@ static int __add_new_message(device_instance* instance, message_t* new_message){
     }
 
     //update global device state
-    mutex_lock(&instance->dev_mutex);
     list_add_tail(&new_message->next, &instance->stored_messages);
     instance->actual_total_size += new_message->len;
     __atomic_fetch_add(&instance->num_pending_read, 1, __ATOMIC_SEQ_CST);
@@ -587,6 +588,7 @@ static void __exit remove_dev(void){
         __del_all_messages(i);
         list_del(&instance_by_minor[i].stored_messages);
         list_del(&instance_by_minor[i].all_sessions);
+        list_del(&instance_by_minor[i].readers_subscriptions);
     }
 
     unregister_chrdev(Major, DEVICE_NAME);
